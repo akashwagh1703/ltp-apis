@@ -42,7 +42,7 @@ return new class extends Migration
         // REVIEWS
         $this->addIndexSafe('reviews', 'turf_id');
         $this->addIndexSafe('reviews', 'player_id');
-        $this->addIndexSafe('reviews', 'status');
+        // $this->addIndexSafe('reviews', 'status');
 
         // COUPONS
         $this->addIndexSafe('coupons', 'code');
