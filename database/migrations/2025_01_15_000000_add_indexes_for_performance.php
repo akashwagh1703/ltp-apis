@@ -46,12 +46,11 @@ return new class extends Migration
 
         // COUPONS
         $this->addIndexSafe('coupons', 'code');
-        // $this->addIndexSafe('coupons', 'status');
+        $this->addIndexSafe('coupons', 'is_active');
         $this->addIndexSafeMultiple('coupons', ['valid_from', 'valid_to']);
 
         // OTP
         $this->addIndexSafe('otps', 'phone');
-        $this->addIndexSafeMultiple('otps', ['phone', 'purpose']);
         $this->addIndexSafe('otps', 'expires_at');
     }
 
