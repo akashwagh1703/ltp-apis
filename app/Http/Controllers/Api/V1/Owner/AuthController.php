@@ -23,6 +23,14 @@ class AuthController extends Controller
     {
         $request->validate(['phone' => 'required|string|max:15']);
 
+        // Rate limiting: 3 attempts per 10 minutes
+        $key = 'otp_attempts:' . $request->phone;
+        $attempts = \Cache::get($key, 0);
+        
+        if ($attempts >= 3) {
+            return response()->json(['message' => 'Too many OTP requests. Please try after 10 minutes.'], 429);
+        }
+
         $owner = Owner::where('phone', $request->phone)->first();
         
         if (!$owner) {
@@ -31,6 +39,8 @@ class AuthController extends Controller
 
         $otp = $this->otpService->generate($request->phone, 'login');
         $this->smsService->sendOtp($request->phone, $otp);
+
+        \Cache::put($key, $attempts + 1, now()->addMinutes(10));
 
         return response()->json(['message' => 'OTP sent successfully']);
     }

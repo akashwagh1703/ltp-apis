@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\CreateTurfRequest;
+use App\Http\Requests\StoreTurfRequest;
+use App\Http\Requests\UpdateTurfRequest;
 use App\Http\Resources\TurfResource;
 use App\Models\Turf;
 use App\Models\TurfImage;
@@ -34,7 +35,7 @@ class TurfController extends Controller
         return TurfResource::collection($turfs);
     }
 
-    public function store(Request $request)
+    public function store(StoreTurfRequest $request)
     {
         $data = [
             'owner_id' => $request->owner_id,
@@ -118,7 +119,7 @@ class TurfController extends Controller
         return new TurfResource($turf);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateTurfRequest $request, $id)
     {
         $turf = Turf::findOrFail($id);
         
