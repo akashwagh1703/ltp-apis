@@ -46,54 +46,97 @@ class BookingController extends Controller
         $request->validate([
             'slot_ids' => 'required|array',
             'slot_ids.*' => 'exists:turf_slots,id',
+            'coupon_code' => 'nullable|string'
         ]);
 
-        $slots = TurfSlot::with('turf')
-            ->whereIn('id', $request->slot_ids)
-            ->orderBy('start_time')
-            ->get();
+        try {
+            \DB::beginTransaction();
 
-        if ($slots->isEmpty()) {
-            return response()->json(['message' => 'No slots found'], 400);
-        }
+            $slots = TurfSlot::with('turf')
+                ->whereIn('id', $request->slot_ids)
+                ->orderBy('start_time')
+                ->lockForUpdate()
+                ->get();
 
-        foreach ($slots as $slot) {
-            if ($slot->status !== 'available') {
-                return response()->json(['message' => 'One or more slots not available'], 400);
+            if ($slots->isEmpty()) {
+                return response()->json(['message' => 'No slots found'], 400);
             }
+
+            // Validate all slots are from same turf and same date
+            $turfId = $slots->first()->turf_id;
+            $date = $slots->first()->date;
+            foreach ($slots as $slot) {
+                if ($slot->turf_id !== $turfId) {
+                    return response()->json(['message' => 'All slots must be from the same turf'], 400);
+                }
+                if ($slot->date !== $date) {
+                    return response()->json(['message' => 'All slots must be for the same date'], 400);
+                }
+                if ($slot->status !== 'available') {
+                    return response()->json(['message' => 'One or more slots not available'], 400);
+                }
+            }
+
+            $player = $request->user();
+            $firstSlot = $slots->first();
+            $lastSlot = $slots->last();
+            $totalAmount = $slots->sum('price');
+            $duration = $slots->count() * 60;
+            $discountAmount = 0;
+
+            // Apply coupon if provided
+            if ($request->coupon_code) {
+                $coupon = \App\Models\Coupon::where('code', $request->coupon_code)
+                    ->where('status', 'active')
+                    ->where('valid_from', '<=', now())
+                    ->where('valid_to', '>=', now())
+                    ->first();
+                
+                if ($coupon && $totalAmount >= $coupon->min_booking_amount) {
+                    if ($coupon->discount_type === 'percentage') {
+                        $discountAmount = ($totalAmount * $coupon->discount_value) / 100;
+                        if ($coupon->max_discount_amount) {
+                            $discountAmount = min($discountAmount, $coupon->max_discount_amount);
+                        }
+                    } else {
+                        $discountAmount = $coupon->discount_value;
+                    }
+                }
+            }
+
+            $finalAmount = $totalAmount - $discountAmount;
+
+            $booking = Booking::create([
+                'booking_number' => 'BK' . time() . rand(1000, 9999),
+                'player_id' => $player->id,
+                'turf_id' => $firstSlot->turf_id,
+                'slot_id' => $firstSlot->id,
+                'owner_id' => $firstSlot->turf->owner_id,
+                'booking_date' => $firstSlot->date,
+                'start_time' => $firstSlot->start_time,
+                'end_time' => $lastSlot->end_time,
+                'slot_duration' => $duration,
+                'amount' => $totalAmount,
+                'discount_amount' => $discountAmount,
+                'final_amount' => $finalAmount,
+                'booking_type' => 'online',
+                'booking_status' => 'confirmed',
+                'payment_mode' => 'online',
+                'payment_status' => 'pending',
+                'player_name' => $player->name ?? 'Guest',
+                'player_phone' => $player->phone,
+                'player_email' => $player->email,
+            ]);
+
+            // Mark all slots as booked
+            TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_online']);
+
+            \DB::commit();
+            return response()->json(new BookingResource($booking->load('turf', 'payment')), 201);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Booking failed: ' . $e->getMessage()], 500);
         }
-
-        $player = $request->user();
-        $firstSlot = $slots->first();
-        $lastSlot = $slots->last();
-        $totalAmount = $slots->sum('price');
-        $duration = $slots->count() * 60;
-
-        $booking = Booking::create([
-            'booking_number' => 'BK' . time() . rand(1000, 9999),
-            'player_id' => $player->id,
-            'turf_id' => $firstSlot->turf_id,
-            'slot_id' => $firstSlot->id,
-            'owner_id' => $firstSlot->turf->owner_id,
-            'booking_date' => $firstSlot->date,
-            'start_time' => $firstSlot->start_time,
-            'end_time' => $lastSlot->end_time,
-            'slot_duration' => $duration,
-            'amount' => $totalAmount,
-            'discount_amount' => 0,
-            'final_amount' => $totalAmount,
-            'booking_type' => 'online',
-            'booking_status' => 'confirmed',
-            'payment_mode' => 'online',
-            'payment_status' => 'pending',
-            'player_name' => $player->name ?? 'Guest',
-            'player_phone' => $player->phone,
-            'player_email' => $player->email,
-        ]);
-
-        TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_online']);
-
-        return response()->json(new BookingResource($booking), 201);
     }
 
     public function confirmPayment(Request $request, $id)
@@ -105,19 +148,51 @@ class BookingController extends Controller
         return response()->json(['message' => 'Payment confirmed']);
     }
 
-    public function cancel($id)
+    public function cancel(Request $request, $id)
     {
-        $booking = Booking::where('player_id', auth()->id())
-            ->findOrFail($id);
+        try {
+            \DB::beginTransaction();
 
-        $booking->update([
-            'booking_status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancelled_by' => 'player',
-        ]);
+            $booking = Booking::where('player_id', auth()->id())
+                ->findOrFail($id);
 
-        TurfSlot::where('id', $booking->slot_id)->update(['status' => 'available']);
+            if ($booking->booking_status === 'cancelled') {
+                return response()->json(['message' => 'Booking already cancelled'], 400);
+            }
 
-        return response()->json(['message' => 'Booking cancelled']);
+            if ($booking->booking_status === 'completed') {
+                return response()->json(['message' => 'Cannot cancel completed booking'], 400);
+            }
+
+            // Check cancellation window (24 hours before booking)
+            $cancellationHours = config('app.booking_cancellation_hours', 24);
+            $bookingDateTime = \Carbon\Carbon::parse($booking->booking_date . ' ' . $booking->start_time);
+            if (now()->diffInHours($bookingDateTime, false) < $cancellationHours) {
+                return response()->json([
+                    'message' => "Cancellation allowed only {$cancellationHours} hours before booking time"
+                ], 400);
+            }
+
+            $booking->update([
+                'booking_status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => 'player',
+                'cancellation_reason' => $request->reason ?? 'Cancelled by player'
+            ]);
+
+            // Release all booked slots
+            TurfSlot::where('turf_id', $booking->turf_id)
+                ->where('date', $booking->booking_date)
+                ->where('start_time', '>=', $booking->start_time)
+                ->where('end_time', '<=', $booking->end_time)
+                ->where('status', 'booked_online')
+                ->update(['status' => 'available']);
+
+            \DB::commit();
+            return response()->json(['message' => 'Booking cancelled successfully']);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Cancellation failed: ' . $e->getMessage()], 500);
+        }
     }
 }
