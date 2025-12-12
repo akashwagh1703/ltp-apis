@@ -46,7 +46,7 @@ return new class extends Migration
 
         // COUPONS
         $this->addIndexSafe('coupons', 'code');
-        $this->addIndexSafe('coupons', 'status');
+        // $this->addIndexSafe('coupons', 'status');
         $this->addIndexSafeMultiple('coupons', ['valid_from', 'valid_to']);
 
         // OTP
