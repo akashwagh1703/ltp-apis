@@ -11,11 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->api(prepend: [
+            \App\Http\Middleware\Cors::class,
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+        
         $middleware->alias([
             'admin.auth' => \App\Http\Middleware\AdminAuth::class,
             'player.auth' => \App\Http\Middleware\PlayerAuth::class,
             'owner.auth' => \App\Http\Middleware\OwnerAuth::class,
             'log.activity' => \App\Http\Middleware\LogActivity::class,
+            'cors' => \App\Http\Middleware\Cors::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
