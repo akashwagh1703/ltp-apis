@@ -1,124 +1,99 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     public function up()
     {
-        Schema::table('players', function (Blueprint $table) {
-            $table->index('phone');
-            $table->index('email');
-            $table->index('status');
-        });
+        // PLAYERS
+        $this->addIndexSafe('players', 'phone');
+        $this->addIndexSafe('players', 'email');
+        $this->addIndexSafe('players', 'status');
 
-        Schema::table('owners', function (Blueprint $table) {
-            $table->index('phone');
-            $table->index('email');
-            $table->index('status');
-        });
+        // OWNERS
+        $this->addIndexSafe('owners', 'phone');
+        $this->addIndexSafe('owners', 'email');
+        $this->addIndexSafe('owners', 'status');
 
-        Schema::table('turfs', function (Blueprint $table) {
-            $table->index('owner_id');
-            $table->index('status');
-            $table->index('city');
-            $table->index('is_featured');
-            $table->index(['latitude', 'longitude']);
-        });
+        // TURFS
+        $this->addIndexSafe('turfs', 'owner_id');
+        $this->addIndexSafe('turfs', 'status');
+        $this->addIndexSafe('turfs', 'city');
+        $this->addIndexSafe('turfs', 'is_featured');
+        $this->addIndexSafeMultiple('turfs', ['latitude', 'longitude']);
 
-        Schema::table('bookings', function (Blueprint $table) {
-            $table->index('player_id');
-            $table->index('turf_id');
-            $table->index('owner_id');
-            $table->index('booking_date');
-            $table->index('booking_status');
-            $table->index('payment_status');
-            $table->index('booking_number');
-        });
+        // BOOKINGS
+        $this->addIndexSafe('bookings', 'player_id');
+        $this->addIndexSafe('bookings', 'turf_id');
+        $this->addIndexSafe('bookings', 'owner_id');
+        $this->addIndexSafe('bookings', 'booking_date');
+        $this->addIndexSafe('bookings', 'booking_status');
+        $this->addIndexSafe('bookings', 'payment_status');
+        $this->addIndexSafe('bookings', 'booking_number');
 
-        Schema::table('turf_slots', function (Blueprint $table) {
-            $table->index('turf_id');
-            $table->index('date');
-            $table->index('status');
-            $table->index(['turf_id', 'date', 'status']);
-        });
+        // TURF SLOTS
+        $this->addIndexSafe('turf_slots', 'turf_id');
+        $this->addIndexSafe('turf_slots', 'date');
+        $this->addIndexSafe('turf_slots', 'status');
+        $this->addIndexSafeMultiple('turf_slots', ['turf_id', 'date', 'status']);
 
-        Schema::table('reviews', function (Blueprint $table) {
-            $table->index('turf_id');
-            $table->index('player_id');
-            $table->index('status');
-        });
+        // REVIEWS
+        $this->addIndexSafe('reviews', 'turf_id');
+        $this->addIndexSafe('reviews', 'player_id');
+        $this->addIndexSafe('reviews', 'status');
 
-        Schema::table('coupons', function (Blueprint $table) {
-            $table->index('code');
-            $table->index('status');
-            $table->index(['valid_from', 'valid_to']);
-        });
+        // COUPONS
+        $this->addIndexSafe('coupons', 'code');
+        $this->addIndexSafe('coupons', 'status');
+        $this->addIndexSafeMultiple('coupons', ['valid_from', 'valid_to']);
 
-        Schema::table('otps', function (Blueprint $table) {
-            $table->index('phone');
-            $table->index(['phone', 'purpose']);
-            $table->index('expires_at');
-        });
+        // OTP
+        $this->addIndexSafe('otps', 'phone');
+        $this->addIndexSafeMultiple('otps', ['phone', 'purpose']);
+        $this->addIndexSafe('otps', 'expires_at');
     }
 
     public function down()
     {
-        Schema::table('players', function (Blueprint $table) {
-            $table->dropIndex(['phone']);
-            $table->dropIndex(['email']);
-            $table->dropIndex(['status']);
-        });
+        // Nothing required for production
+    }
 
-        Schema::table('owners', function (Blueprint $table) {
-            $table->dropIndex(['phone']);
-            $table->dropIndex(['email']);
-            $table->dropIndex(['status']);
-        });
+    private function addIndexSafe($table, $column)
+    {
+        $indexName = "{$table}_{$column}_index";
 
-        Schema::table('turfs', function (Blueprint $table) {
-            $table->dropIndex(['owner_id']);
-            $table->dropIndex(['status']);
-            $table->dropIndex(['city']);
-            $table->dropIndex(['is_featured']);
-            $table->dropIndex(['latitude', 'longitude']);
-        });
+        DB::statement("
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = '{$indexName}'
+                ) THEN
+                    CREATE INDEX {$indexName} ON {$table} ({$column});
+                END IF;
+            END$$;
+        ");
+    }
 
-        Schema::table('bookings', function (Blueprint $table) {
-            $table->dropIndex(['player_id']);
-            $table->dropIndex(['turf_id']);
-            $table->dropIndex(['owner_id']);
-            $table->dropIndex(['booking_date']);
-            $table->dropIndex(['booking_status']);
-            $table->dropIndex(['payment_status']);
-            $table->dropIndex(['booking_number']);
-        });
+    private function addIndexSafeMultiple($table, array $columns)
+    {
+        $indexName = $table . '_' . implode('_', $columns) . '_index';
+        $columnsStr = implode(', ', $columns);
 
-        Schema::table('turf_slots', function (Blueprint $table) {
-            $table->dropIndex(['turf_id']);
-            $table->dropIndex(['date']);
-            $table->dropIndex(['status']);
-            $table->dropIndex(['turf_id', 'date', 'status']);
-        });
-
-        Schema::table('reviews', function (Blueprint $table) {
-            $table->dropIndex(['turf_id']);
-            $table->dropIndex(['player_id']);
-            $table->dropIndex(['status']);
-        });
-
-        Schema::table('coupons', function (Blueprint $table) {
-            $table->dropIndex(['code']);
-            $table->dropIndex(['status']);
-            $table->dropIndex(['valid_from', 'valid_to']);
-        });
-
-        Schema::table('otps', function (Blueprint $table) {
-            $table->dropIndex(['phone']);
-            $table->dropIndex(['phone', 'purpose']);
-            $table->dropIndex(['expires_at']);
-        });
+        DB::statement("
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = '{$indexName}'
+                ) THEN
+                    CREATE INDEX {$indexName} ON {$table} ({$columnsStr});
+                END IF;
+            END$$;
+        ");
     }
 };
