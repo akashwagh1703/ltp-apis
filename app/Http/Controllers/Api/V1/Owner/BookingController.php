@@ -56,7 +56,7 @@ class BookingController extends Controller
             'start_time' => 'required',
             'end_time' => 'required',
             'amount' => 'required|numeric',
-            'payment_method' => 'required|in:cash,upi,card',
+            'payment_method' => 'required|in:cash,upi,online,pay_on_turf',
         ]);
 
         // Get first slot for primary booking
