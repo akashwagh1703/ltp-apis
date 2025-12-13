@@ -77,6 +77,8 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
     Route::get('turfs/featured', 'TurfController@featured');
     Route::get('turfs/{id}', 'TurfController@show');
     Route::get('slots/available', 'SlotController@available');
+    Route::post('slots/generate', 'SlotController@generate');
+    Route::post('slots/update-prices', 'SlotController@updatePrices');
     
     Route::get('banners', 'BannerController@index');
     Route::get('faqs', 'FaqController@index');
@@ -124,6 +126,7 @@ Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group
         
         Route::post('slots/generate', 'SlotController@generate');
         Route::get('slots', 'SlotController@list');
+        Route::post('slots/update-prices', 'SlotController@updatePrices');
         
         Route::get('bookings', 'BookingController@index');
         Route::post('bookings/offline', 'BookingController@createOffline');
