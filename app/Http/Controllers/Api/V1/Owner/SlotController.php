@@ -73,7 +73,9 @@ class SlotController extends Controller
         
         // Add is_booked flag and display times
         $slots = $slots->map(function($slot) {
-            $slot->is_booked = $slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']);
+            // Check if slot is booked by status or has active booking
+            $slot->is_booked = in_array($slot->status, ['booked_online', 'booked_offline']) || 
+                              ($slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']));
             $slot->start_time_display = \Carbon\Carbon::parse($slot->start_time)->format('g A');
             $slot->end_time_display = \Carbon\Carbon::parse($slot->end_time)->format('g A');
             return $slot;
