@@ -11,9 +11,10 @@ class TurfImageController extends Controller
     public function upload(Request $request, $turfId)
     {
         $request->validate([
-            'images' => 'required|array',
-            'images.*' => 'required|file|image|mimes:jpeg,jpg,png,gif|max:5120'
+            'images' => 'required|array|min:1',
+            'images.*' => 'file|image|mimes:jpeg,jpg,png,gif|max:5120'
         ], [
+            'images.required' => 'Please select at least one image',
             'images.*.mimes' => 'Only JPG, JPEG, PNG, and GIF images are allowed',
             'images.*.max' => 'Image size must not exceed 5MB',
         ]);
