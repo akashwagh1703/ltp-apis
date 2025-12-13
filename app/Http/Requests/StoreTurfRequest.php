@@ -32,7 +32,8 @@ class StoreTurfRequest extends FormRequest
             'slot_duration' => 'required|integer|in:30,60,90,120',
             'pricing_type' => 'required|in:uniform,dynamic',
             'uniform_price' => 'required_if:pricing_type,uniform|nullable|numeric|min:0',
-            'images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'images' => 'nullable|array',
+            'images.*' => 'nullable|file|image|mimes:jpeg,jpg,png,gif|max:5120',
             'amenities' => 'nullable|string',
             'pricing' => 'nullable|string',
         ];
@@ -45,6 +46,7 @@ class StoreTurfRequest extends FormRequest
             'owner_id.exists' => 'Selected owner does not exist',
             'closing_time.after' => 'Closing time must be after opening time',
             'images.*.image' => 'All files must be images',
+            'images.*.mimes' => 'Only JPG, JPEG, PNG, and GIF images are allowed',
             'images.*.max' => 'Image size must not exceed 5MB',
         ];
     }
