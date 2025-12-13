@@ -34,7 +34,7 @@ class SlotController extends Controller
             $turf->opening_time,
             $turf->closing_time,
             $turf->slot_duration,
-            null
+            $turf->uniform_price
         );
 
         TurfSlot::insert($slots);

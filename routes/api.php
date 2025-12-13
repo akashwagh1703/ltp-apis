@@ -77,7 +77,6 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
     Route::get('turfs/featured', 'TurfController@featured');
     Route::get('turfs/{id}', 'TurfController@show');
     Route::get('slots/available', 'SlotController@available');
-    Route::post('slots/generate', 'SlotController@generate');
     
     Route::get('banners', 'BannerController@index');
     Route::get('faqs', 'FaqController@index');
@@ -92,6 +91,9 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
         Route::post('bookings', 'BookingController@store');
         Route::post('bookings/{id}/confirm-payment', 'BookingController@confirmPayment');
         Route::post('bookings/{id}/cancel', 'BookingController@cancel');
+        
+        Route::post('payment/create-order', 'PaymentController@createOrder');
+        Route::post('payment/verify', 'PaymentController@verifyPayment');
         
         Route::post('reviews', 'ReviewController@store');
         Route::get('reviews/my', 'ReviewController@myReviews');

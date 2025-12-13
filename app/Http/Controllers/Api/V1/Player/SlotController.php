@@ -24,16 +24,14 @@ class SlotController extends Controller
             'date' => 'required|date',
         ]);
 
-        // Get all slots with booking information
-        $query = TurfSlot::with(['booking' => function($q) {
+        $slots = TurfSlot::with(['booking' => function($q) {
             $q->select('id', 'slot_id', 'player_name', 'booking_status');
         }])
         ->where('turf_id', $request->turf_id)
-        ->where('date', $request->date);
+        ->where('date', $request->date)
+        ->orderBy('start_time')
+        ->get();
 
-        $slots = $query->orderBy('start_time')->get();
-        
-        // Filter out past slots for today
         $now = \Carbon\Carbon::now();
         $slots = $slots->filter(function($slot) use ($now, $request) {
             if ($request->date === $now->toDateString()) {
@@ -42,8 +40,7 @@ class SlotController extends Controller
             }
             return true;
         });
-        
-        // Add is_booked flag and display times
+
         $slots = $slots->map(function($slot) {
             $slot->is_booked = in_array($slot->status, ['booked_online', 'booked_offline']) || 
                               ($slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']));
@@ -75,9 +72,6 @@ class SlotController extends Controller
 
         TurfSlot::insert($slots);
 
-        return response()->json([
-            'message' => 'Slots generated successfully',
-            'count' => count($slots)
-        ]);
+        return response()->json(['message' => 'Slots generated successfully', 'count' => count($slots)]);
     }
 }
