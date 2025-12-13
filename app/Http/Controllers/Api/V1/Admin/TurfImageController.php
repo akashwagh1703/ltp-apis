@@ -11,34 +11,43 @@ class TurfImageController extends Controller
     public function upload(Request $request, $turfId)
     {
         $request->validate([
-            'images' => 'required',
-            'images.*' => 'image|max:5120'
+            'images' => 'required|array',
+            'images.*' => 'required|file|image|mimes:jpeg,jpg,png,gif|max:5120'
+        ], [
+            'images.*.mimes' => 'Only JPG, JPEG, PNG, and GIF images are allowed',
+            'images.*.max' => 'Image size must not exceed 5MB',
         ]);
 
         $uploadedImages = [];
         
         if ($request->hasFile('images')) {
-            $images = $request->file('images');
-            $validImages = array_filter($images, function($image) {
-                return $image !== null && is_object($image) && method_exists($image, 'isValid') && $image->isValid();
-            });
-            
+            $images = is_array($request->file('images')) ? $request->file('images') : [$request->file('images')];
             $existingCount = TurfImage::where('turf_id', $turfId)->count();
             $index = 0;
             
-            foreach ($validImages as $image) {
-                $path = $image->store('turfs', 'public');
-                if ($path) {
-                    $turfImage = TurfImage::create([
-                        'turf_id' => $turfId,
-                        'image_path' => $path,
-                        'is_primary' => $existingCount === 0 && $index === 0,
-                        'order' => $existingCount + $index,
-                    ]);
-                    $uploadedImages[] = $turfImage;
-                    $index++;
+            foreach ($images as $image) {
+                if ($image && $image->isValid()) {
+                    try {
+                        $path = $image->store('turfs', 'public');
+                        if ($path) {
+                            $turfImage = TurfImage::create([
+                                'turf_id' => $turfId,
+                                'image_path' => $path,
+                                'is_primary' => $existingCount === 0 && $index === 0,
+                                'order' => $existingCount + $index,
+                            ]);
+                            $uploadedImages[] = $turfImage;
+                            $index++;
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Image upload failed: ' . $e->getMessage());
+                    }
                 }
             }
+        }
+
+        if (empty($uploadedImages)) {
+            return response()->json(['message' => 'No images were uploaded'], 400);
         }
 
         return response()->json([
