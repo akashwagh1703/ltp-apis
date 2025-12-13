@@ -46,15 +46,31 @@ class SlotController extends Controller
     {
         $request->validate([
             'turf_id' => 'required|exists:turfs,id',
+            'date' => 'nullable|date',
         ]);
 
-        $query = TurfSlot::where('turf_id', $request->turf_id);
+        $query = TurfSlot::with(['booking' => function($q) {
+            $q->select('id', 'slot_id', 'player_name', 'booking_status');
+        }])
+        ->where('turf_id', $request->turf_id);
         
         if ($request->date) {
             $query->where('date', $request->date);
         }
 
         $slots = $query->orderBy('date')->orderBy('start_time')->get();
+        
+        // Add is_booked flag
+        $slots = $slots->map(function($slot) {
+            $slot->is_booked = $slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']);
+            return $slot;
+        });
+
+        \Log::info('Slots retrieved', [
+            'turf_id' => $request->turf_id,
+            'date' => $request->date,
+            'count' => $slots->count(),
+        ]);
 
         return response()->json($slots);
     }
