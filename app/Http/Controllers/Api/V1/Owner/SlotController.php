@@ -63,9 +63,9 @@ class SlotController extends Controller
         // Filter out past slots for today
         $now = \Carbon\Carbon::now();
         $slots = $slots->filter(function($slot) use ($now, $request) {
-            $slotDateTime = \Carbon\Carbon::parse($slot->date . ' ' . $slot->start_time);
             // If it's today, only show future slots
             if ($request->date === $now->toDateString()) {
+                $slotDateTime = \Carbon\Carbon::parse($request->date . ' ' . $slot->start_time);
                 return $slotDateTime->gt($now);
             }
             return true;
