@@ -98,7 +98,7 @@ class BookingController extends Controller
         ]);
 
         // Mark all slots as booked
-        TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked']);
+        TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_offline']);
 
         try {
             $this->smsService->sendBookingConfirmation(
