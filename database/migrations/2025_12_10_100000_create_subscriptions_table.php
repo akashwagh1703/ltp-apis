@@ -34,6 +34,15 @@ return new class extends Migration
         // Insert default plans
         DB::table('subscription_plans')->insert([
             [
+                'name' => 'Free Plan',
+                'type' => 'monthly',
+                'price' => 0.00,
+                'duration_days' => 30,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
                 'name' => 'Monthly Plan',
                 'type' => 'monthly',
                 'price' => 199.00,

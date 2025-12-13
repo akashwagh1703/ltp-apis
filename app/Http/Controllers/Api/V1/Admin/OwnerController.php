@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateOwnerRequest;
 use App\Http\Resources\OwnerResource;
 use App\Models\Owner;
+use App\Models\Subscription;
+use App\Models\SubscriptionPlan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -67,9 +69,24 @@ class OwnerController extends Controller
             'status' => 'active',
         ]);
 
+        // Automatically assign free plan to new owner
+        $freePlan = SubscriptionPlan::where('name', 'Free Plan')->where('is_active', true)->first();
+        if ($freePlan) {
+            Subscription::create([
+                'owner_id' => $owner->id,
+                'plan_id' => $freePlan->id,
+                'start_date' => now(),
+                'end_date' => now()->addDays($freePlan->duration_days),
+                'status' => 'active',
+                'amount_paid' => 0.00,
+                'payment_method' => 'free',
+                'transaction_id' => 'FREE-' . strtoupper(uniqid()),
+            ]);
+        }
+
         return response()->json([
-            'message' => 'Owner added successfully',
-            'data' => new OwnerResource($owner)
+            'message' => 'Owner added successfully with free subscription',
+            'data' => new OwnerResource($owner->load('activeSubscription'))
         ], 201);
     }
 
