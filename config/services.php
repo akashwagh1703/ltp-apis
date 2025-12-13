@@ -14,6 +14,11 @@ return [
         ],
     ],
 
+    'razorpay' => [
+        'key' => env('RAZORPAY_KEY_ID', 'rzp_test_xxxxxxxx'),
+        'secret' => env('RAZORPAY_KEY_SECRET', 'xxxxxxxx'),
+    ],
+
     'payment' => [
         'gateway' => env('PAYMENT_GATEWAY', 'razorpay'),
         'razorpay' => [
