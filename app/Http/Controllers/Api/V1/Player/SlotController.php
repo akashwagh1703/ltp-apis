@@ -49,6 +49,13 @@ class SlotController extends Controller
             return $slot;
         })->values();
 
+        \Log::info('Slots returned', [
+            'turf_id' => $request->turf_id,
+            'date' => $request->date,
+            'count' => $slots->count(),
+            'sample_prices' => $slots->take(3)->pluck('price')->toArray()
+        ]);
+
         return response()->json($slots);
     }
 
@@ -73,5 +80,51 @@ class SlotController extends Controller
         TurfSlot::insert($slots);
 
         return response()->json(['message' => 'Slots generated successfully', 'count' => count($slots)]);
+    }
+
+    public function updatePrices(Request $request)
+    {
+        $request->validate([
+            'turf_id' => 'required|exists:turfs,id',
+        ]);
+
+        $turf = Turf::with('pricing')->findOrFail($request->turf_id);
+        $slots = TurfSlot::where('turf_id', $turf->id)
+            ->where('status', 'available')
+            ->get();
+
+        $updated = 0;
+        foreach ($slots as $slot) {
+            $dayType = \Carbon\Carbon::parse($slot->date)->isWeekend() ? 'weekend' : 'weekday';
+            $slotTime = \Carbon\Carbon::parse($slot->start_time);
+            $price = $this->calculateSlotPrice($turf, $dayType, $slotTime);
+            
+            if ($slot->price != $price) {
+                $slot->price = $price;
+                $slot->save();
+                $updated++;
+            }
+        }
+
+        return response()->json(['message' => 'Prices updated successfully', 'updated' => $updated]);
+    }
+
+    private function calculateSlotPrice($turf, $dayType, $slotTime)
+    {
+        if ($turf->pricing_type === 'uniform') {
+            return $turf->uniform_price ?? 500.00;
+        }
+
+        $hour = $slotTime->hour;
+        if ($hour >= 6 && $hour < 12) $timeSlot = 'morning';
+        elseif ($hour >= 12 && $hour < 17) $timeSlot = 'afternoon';
+        elseif ($hour >= 17 && $hour < 21) $timeSlot = 'evening';
+        else $timeSlot = 'night';
+
+        $pricing = $turf->pricing->where('day_type', $dayType)
+            ->where('time_slot', $timeSlot)
+            ->first();
+
+        return $pricing ? $pricing->price : ($turf->uniform_price ?? 500.00);
     }
 }
