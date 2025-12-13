@@ -66,10 +66,21 @@ class TurfImageController extends Controller
                 continue;
             }
 
-            // Check file type
-            $allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-            if (!in_array($file->getMimeType(), $allowedMimes)) {
-                \Log::error('Invalid mime type', ['mime' => $file->getMimeType()]);
+            // Check file type - use both mime type and extension
+            $mimeType = $file->getMimeType();
+            $extension = strtolower($file->getClientOriginalExtension());
+            
+            $allowedMimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif'];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+            
+            $validMime = in_array($mimeType, $allowedMimes);
+            $validExtension = in_array($extension, $allowedExtensions);
+            
+            if (!$validMime && !$validExtension) {
+                \Log::error('Invalid file type', [
+                    'mime' => $mimeType,
+                    'extension' => $extension
+                ]);
                 continue;
             }
 
