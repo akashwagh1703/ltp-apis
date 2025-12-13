@@ -32,6 +32,11 @@ class TurfSlot extends Model
 
     public function booking()
     {
-        return $this->hasOne(Booking::class);
+        return $this->hasOne(Booking::class, 'slot_id');
+    }
+    
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class, 'slot_id');
     }
 }
