@@ -97,8 +97,34 @@ class BookingController extends Controller
             'player_phone' => $request->player_phone,
         ]);
 
-        // Mark all slots as booked
-        TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_offline']);
+        // Mark all slots as booked and link to booking
+        foreach ($slots as $slot) {
+            $slot->update(['status' => 'booked_offline']);
+            
+            // Create additional booking records for other slots to maintain relationship
+            if ($slot->id !== $firstSlot->id) {
+                Booking::create([
+                    'booking_number' => $booking->booking_number,
+                    'player_id' => null,
+                    'turf_id' => $request->turf_id,
+                    'slot_id' => $slot->id,
+                    'owner_id' => $request->user()->id,
+                    'booking_date' => $request->booking_date,
+                    'start_time' => $request->start_time,
+                    'end_time' => $request->end_time,
+                    'slot_duration' => $duration,
+                    'amount' => 0, // Only first booking has amount
+                    'discount_amount' => 0,
+                    'final_amount' => 0,
+                    'booking_type' => 'offline',
+                    'booking_status' => 'confirmed',
+                    'payment_mode' => $request->payment_method,
+                    'payment_status' => 'success',
+                    'player_name' => $request->player_name,
+                    'player_phone' => $request->player_phone,
+                ]);
+            }
+        }
 
         try {
             $this->smsService->sendBookingConfirmation(
