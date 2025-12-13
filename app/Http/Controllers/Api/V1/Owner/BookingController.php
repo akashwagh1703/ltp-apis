@@ -98,13 +98,13 @@ class BookingController extends Controller
         ]);
 
         // Mark all slots as booked and link to booking
-        foreach ($slots as $slot) {
+        foreach ($slots as $index => $slot) {
             $slot->update(['status' => 'booked_offline']);
             
             // Create additional booking records for other slots to maintain relationship
             if ($slot->id !== $firstSlot->id) {
                 Booking::create([
-                    'booking_number' => $booking->booking_number,
+                    'booking_number' => $booking->booking_number . '-' . ($index + 1),
                     'player_id' => null,
                     'turf_id' => $request->turf_id,
                     'slot_id' => $slot->id,
