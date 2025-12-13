@@ -64,14 +64,24 @@ class BookingController extends Controller
 
             // Validate all slots are from same turf and same date
             $turfId = $slots->first()->turf_id;
-            $date = $slots->first()->date;
+            $date = $slots->first()->date instanceof \Carbon\Carbon 
+                ? $slots->first()->date->format('Y-m-d') 
+                : $slots->first()->date;
+            
             foreach ($slots as $slot) {
                 if ($slot->turf_id !== $turfId) {
                     return response()->json(['message' => 'All slots must be from the same turf'], 400);
                 }
-                if ($slot->date !== $date) {
+                
+                $slotDate = $slot->date instanceof \Carbon\Carbon 
+                    ? $slot->date->format('Y-m-d') 
+                    : $slot->date;
+                    
+                if ($slotDate !== $date) {
+                    \Log::error('Date mismatch', ['slot_date' => $slotDate, 'expected_date' => $date]);
                     return response()->json(['message' => 'All slots must be for the same date'], 400);
                 }
+                
                 if ($slot->status !== 'available') {
                     return response()->json(['message' => 'One or more slots not available'], 400);
                 }
