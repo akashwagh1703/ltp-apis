@@ -37,7 +37,7 @@ return new class extends Migration
                 'name' => 'Free Plan',
                 'type' => 'monthly',
                 'price' => 0.00,
-                'duration_days' => 30,
+                'duration_days' => 90,
                 'is_active' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
