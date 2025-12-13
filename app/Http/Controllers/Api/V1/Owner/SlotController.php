@@ -71,11 +71,11 @@ class SlotController extends Controller
             return true;
         });
         
-        // Add is_booked flag and format times to 12-hour
+        // Add is_booked flag and display times
         $slots = $slots->map(function($slot) {
             $slot->is_booked = $slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']);
-            $slot->start_time = \Carbon\Carbon::parse($slot->start_time)->format('g A');
-            $slot->end_time = \Carbon\Carbon::parse($slot->end_time)->format('g A');
+            $slot->start_time_display = \Carbon\Carbon::parse($slot->start_time)->format('g A');
+            $slot->end_time_display = \Carbon\Carbon::parse($slot->end_time)->format('g A');
             return $slot;
         })->values();
 
