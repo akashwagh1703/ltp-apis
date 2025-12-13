@@ -62,22 +62,26 @@ class TurfController extends Controller
 
         // Handle image uploads
         if ($request->hasFile('images')) {
-            $images = $request->file('images');
-            $validImages = array_filter($images, function($image) {
-                return $image !== null && is_object($image) && method_exists($image, 'isValid') && $image->isValid();
-            });
-            
+            $images = is_array($request->file('images')) ? $request->file('images') : [$request->file('images')];
             $index = 0;
-            foreach ($validImages as $image) {
-                $path = $image->store('turfs', 'public');
-                if ($path) {
-                    TurfImage::create([
-                        'turf_id' => $turf->id,
-                        'image_path' => $path,
-                        'is_primary' => $index === 0,
-                        'order' => $index,
-                    ]);
-                    $index++;
+            
+            foreach ($images as $image) {
+                if ($image && $image->isValid()) {
+                    try {
+                        $path = $image->store('turfs', 'public');
+                        if ($path) {
+                            TurfImage::create([
+                                'turf_id' => $turf->id,
+                                'image_path' => $path,
+                                'is_primary' => $index === 0,
+                                'order' => $index,
+                            ]);
+                            $index++;
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Image upload failed: ' . $e->getMessage());
+                        // Continue with other images
+                    }
                 }
             }
         }
@@ -151,25 +155,35 @@ class TurfController extends Controller
 
         // Update images only if new files uploaded
         if ($request->hasFile('images')) {
-            $images = $request->file('images');
-            $validImages = array_filter($images, function($image) {
-                return $image !== null && is_object($image) && method_exists($image, 'isValid') && $image->isValid();
-            });
+            $images = is_array($request->file('images')) ? $request->file('images') : [$request->file('images')];
+            $uploadedCount = 0;
+            $tempImages = [];
             
-            if (count($validImages) > 0) {
-                $turf->images()->delete();
-                $index = 0;
-                foreach ($validImages as $image) {
-                    $path = $image->store('turfs', 'public');
-                    if ($path) {
-                        TurfImage::create([
-                            'turf_id' => $turf->id,
-                            'image_path' => $path,
-                            'is_primary' => $index === 0,
-                            'order' => $index,
-                        ]);
-                        $index++;
+            // First, upload all images
+            foreach ($images as $image) {
+                if ($image && $image->isValid()) {
+                    try {
+                        $path = $image->store('turfs', 'public');
+                        if ($path) {
+                            $tempImages[] = $path;
+                            $uploadedCount++;
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Image upload failed: ' . $e->getMessage());
                     }
+                }
+            }
+            
+            // Only delete old images if new ones uploaded successfully
+            if ($uploadedCount > 0) {
+                $turf->images()->delete();
+                foreach ($tempImages as $index => $path) {
+                    TurfImage::create([
+                        'turf_id' => $turf->id,
+                        'image_path' => $path,
+                        'is_primary' => $index === 0,
+                        'order' => $index,
+                    ]);
                 }
             }
         }
