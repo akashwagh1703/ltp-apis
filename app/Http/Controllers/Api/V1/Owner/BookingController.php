@@ -48,49 +48,71 @@ class BookingController extends Controller
     {
         $request->validate([
             'turf_id' => 'required|exists:turfs,id',
-            'turf_slot_id' => 'required|exists:turf_slots,id',
+            'slot_ids' => 'required|array',
+            'slot_ids.*' => 'exists:turf_slots,id',
             'player_name' => 'required|string|max:255',
             'player_phone' => 'required|string|max:15',
+            'booking_date' => 'required|date',
+            'start_time' => 'required',
+            'end_time' => 'required',
+            'amount' => 'required|numeric',
+            'payment_method' => 'required|in:cash,upi,card',
         ]);
 
-        $slot = TurfSlot::findOrFail($request->turf_slot_id);
-
-        if ($slot->status !== 'available') {
-            return response()->json(['message' => 'Slot not available'], 400);
+        // Get first slot for primary booking
+        $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
+        
+        // Check all slots are available
+        $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
+        foreach ($slots as $slot) {
+            if ($slot->status !== 'available') {
+                return response()->json(['message' => 'One or more slots are not available'], 400);
+            }
         }
 
+        // Calculate duration
+        $startTime = \Carbon\Carbon::parse($request->start_time);
+        $endTime = \Carbon\Carbon::parse($request->end_time);
+        $duration = $startTime->diffInMinutes($endTime);
+
+        // Create booking for first slot
         $booking = Booking::create([
             'booking_number' => 'BK' . time() . rand(1000, 9999),
             'player_id' => null,
             'turf_id' => $request->turf_id,
-            'slot_id' => $slot->id,
+            'slot_id' => $firstSlot->id,
             'owner_id' => $request->user()->id,
-            'booking_date' => $slot->date,
-            'start_time' => $slot->start_time,
-            'end_time' => $slot->end_time,
-            'slot_duration' => 60,
-            'amount' => $slot->price,
+            'booking_date' => $request->booking_date,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+            'slot_duration' => $duration,
+            'amount' => $request->amount,
             'discount_amount' => 0,
-            'final_amount' => $slot->price,
+            'final_amount' => $request->amount,
             'booking_type' => 'offline',
             'booking_status' => 'confirmed',
-            'payment_mode' => 'cash',
+            'payment_mode' => $request->payment_method,
             'payment_status' => 'success',
             'player_name' => $request->player_name,
             'player_phone' => $request->player_phone,
         ]);
 
-        TurfSlot::where('id', $slot->id)->update(['status' => 'booked_offline']);
+        // Mark all slots as booked
+        TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked']);
 
-        $this->smsService->sendBookingConfirmation(
-            $request->player_phone,
-            $booking->booking_number,
-            $booking->turf->name,
-            $booking->booking_date->format('d M Y'),
-            $booking->start_time
-        );
+        try {
+            $this->smsService->sendBookingConfirmation(
+                $request->player_phone,
+                $booking->booking_number,
+                $booking->turf->name,
+                $booking->booking_date,
+                $booking->start_time
+            );
+        } catch (\Exception $e) {
+            \Log::error('SMS sending failed: ' . $e->getMessage());
+        }
 
-        return response()->json(new BookingResource($booking), 201);
+        return response()->json(new BookingResource($booking->load('turf')), 201);
     }
 
     public function stats(Request $request)
