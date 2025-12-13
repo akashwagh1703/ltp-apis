@@ -60,11 +60,22 @@ class SlotController extends Controller
 
         $slots = $query->orderBy('date')->orderBy('start_time')->get();
         
+        // Filter out past slots for today
+        $now = \Carbon\Carbon::now();
+        $slots = $slots->filter(function($slot) use ($now, $request) {
+            $slotDateTime = \Carbon\Carbon::parse($slot->date . ' ' . $slot->start_time);
+            // If it's today, only show future slots
+            if ($request->date === $now->toDateString()) {
+                return $slotDateTime->gt($now);
+            }
+            return true;
+        });
+        
         // Add is_booked flag
         $slots = $slots->map(function($slot) {
             $slot->is_booked = $slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']);
             return $slot;
-        });
+        })->values();
 
         \Log::info('Slots retrieved', [
             'turf_id' => $request->turf_id,
