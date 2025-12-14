@@ -23,27 +23,31 @@ class TurfImageController extends Controller
         
         // Try to get files from different possible keys
         $files = [];
-        if ($request->hasFile('images')) {
-            $files = $request->file('images');
-        } elseif ($request->hasFile('image')) {
-            $files = [$request->file('image')];
-        } else {
-            // Check all files in request
-            $allFiles = $request->allFiles();
-            foreach ($allFiles as $key => $file) {
-                if (strpos($key, 'image') !== false) {
-                    if (is_array($file)) {
-                        $files = array_merge($files, $file);
-                    } else {
-                        $files[] = $file;
-                    }
-                }
+        
+        // Check for images[] (array notation from frontend)
+        $allFiles = $request->allFiles();
+        \Log::info('All files keys', ['keys' => array_keys($allFiles)]);
+        
+        foreach ($allFiles as $key => $file) {
+            \Log::info('Processing key', ['key' => $key, 'is_array' => is_array($file)]);
+            
+            if (is_array($file)) {
+                $files = array_merge($files, $file);
+            } else {
+                $files[] = $file;
             }
         }
 
         if (empty($files)) {
+            \Log::error('No files found', [
+                'has_images' => $request->hasFile('images'),
+                'all_files' => array_keys($request->allFiles()),
+                'request_keys' => array_keys($request->all())
+            ]);
             return response()->json(['message' => 'No files received'], 400);
         }
+        
+        \Log::info('Files to process', ['count' => count($files)]);
 
         // Ensure files is an array
         if (!is_array($files)) {
