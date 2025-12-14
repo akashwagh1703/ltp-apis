@@ -54,13 +54,15 @@ class TurfImageController extends Controller
                     if ($path) {
                         $turfImage = TurfImage::create([
                             'turf_id' => $turfId,
-                            'image_path' => $path,
+                            'image_url' => $path,
                             'is_primary' => $existingCount === 0 && $index === 0,
-                            'order' => $existingCount + $index,
+                            'display_order' => $existingCount + $index,
                         ]);
                         
                         $uploadedImages[] = $turfImage;
                         $index++;
+                    } else {
+                        $errors[] = $file->getClientOriginalName() . ': Storage failed';
                     }
                 }
             }
