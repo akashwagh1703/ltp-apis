@@ -12,130 +12,79 @@ class TurfImageController extends Controller
 {
     public function upload(Request $request, $turfId)
     {
-        \Log::info('Upload request received', [
-            'turf_id' => $turfId,
-            'has_files' => $request->hasFile('images'),
-            'all_files' => $request->allFiles(),
-        ]);
-
-        $uploadedImages = [];
-        $existingCount = TurfImage::where('turf_id', $turfId)->count();
-        
-        // Try to get files from different possible keys
-        $files = [];
-        
-        // Check for images[] (array notation from frontend)
-        $allFiles = $request->allFiles();
-        \Log::info('All files keys', ['keys' => array_keys($allFiles)]);
-        
-        foreach ($allFiles as $key => $file) {
-            \Log::info('Processing key', ['key' => $key, 'is_array' => is_array($file)]);
+        try {
+            // Get all files from request
+            $allFiles = $request->allFiles();
             
-            if (is_array($file)) {
-                $files = array_merge($files, $file);
-            } else {
-                $files[] = $file;
-            }
-        }
-
-        if (empty($files)) {
-            \Log::error('No files found', [
-                'has_images' => $request->hasFile('images'),
-                'all_files' => array_keys($request->allFiles()),
-                'request_keys' => array_keys($request->all())
-            ]);
-            return response()->json(['message' => 'No files received'], 400);
-        }
-        
-        \Log::info('Files to process', ['count' => count($files)]);
-
-        // Ensure files is an array
-        if (!is_array($files)) {
-            $files = [$files];
-        }
-
-        $index = 0;
-        foreach ($files as $file) {
-            if (!$file) continue;
-            
-            \Log::info('Processing file', [
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'size' => $file->getSize(),
-                'is_valid' => $file->isValid(),
-            ]);
-
-            if (!$file->isValid()) {
-                \Log::error('Invalid file', ['error' => $file->getError()]);
-                continue;
+            if (empty($allFiles)) {
+                return response()->json([
+                    'message' => 'No files received',
+                    'debug' => [
+                        'content_type' => $request->header('Content-Type'),
+                        'method' => $request->method(),
+                    ]
+                ], 400);
             }
 
-            // Check file type - be more lenient
-            $mimeType = $file->getMimeType();
-            $extension = strtolower($file->getClientOriginalExtension());
-            
-            $allowedMimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/jpg', 'application/octet-stream'];
-            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
-            
-            $validMime = in_array($mimeType, $allowedMimes);
-            $validExtension = in_array($extension, $allowedExtensions);
-            
-            // Accept if either mime OR extension is valid
-            if (!$validMime && !$validExtension) {
-                \Log::error('Invalid file type', [
-                    'mime' => $mimeType,
-                    'extension' => $extension,
-                    'name' => $file->getClientOriginalName()
-                ]);
-                continue;
-            }
+            $uploadedImages = [];
+            $existingCount = TurfImage::where('turf_id', $turfId)->count();
+            $index = 0;
+            $errors = [];
 
-            // Check file size (10MB - increased limit)
-            if ($file->getSize() > 10485760) {
-                \Log::error('File too large', ['size' => $file->getSize()]);
-                continue;
-            }
-            
-            // Skip empty files
-            if ($file->getSize() === 0) {
-                \Log::error('Empty file', ['name' => $file->getClientOriginalName()]);
-                continue;
-            }
-
-            try {
-                $path = $file->store('turfs', 'public');
+            // Process all files
+            foreach ($allFiles as $key => $fileOrArray) {
+                $files = is_array($fileOrArray) ? $fileOrArray : [$fileOrArray];
                 
-                if ($path) {
-                    $turfImage = TurfImage::create([
-                        'turf_id' => $turfId,
-                        'image_path' => $path,
-                        'is_primary' => $existingCount === 0 && $index === 0,
-                        'order' => $existingCount + $index,
-                    ]);
+                foreach ($files as $file) {
+                    if (!$file || !$file->isValid()) {
+                        $errors[] = 'Invalid file: ' . ($file ? $file->getClientOriginalName() : 'unknown');
+                        continue;
+                    }
+
+                    // Just check extension, ignore mime type issues
+                    $extension = strtolower($file->getClientOriginalExtension());
+                    if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif'])) {
+                        $errors[] = $file->getClientOriginalName() . ': Invalid extension';
+                        continue;
+                    }
+
+                    // Store the file
+                    $path = $file->store('turfs', 'public');
                     
-                    $uploadedImages[] = $turfImage;
-                    $index++;
-                    
-                    \Log::info('Image uploaded successfully', ['path' => $path]);
+                    if ($path) {
+                        $turfImage = TurfImage::create([
+                            'turf_id' => $turfId,
+                            'image_path' => $path,
+                            'is_primary' => $existingCount === 0 && $index === 0,
+                            'order' => $existingCount + $index,
+                        ]);
+                        
+                        $uploadedImages[] = $turfImage;
+                        $index++;
+                    }
                 }
-            } catch (\Exception $e) {
-                \Log::error('Image upload exception', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
             }
-        }
 
-        if (empty($uploadedImages)) {
+            if (empty($uploadedImages)) {
+                return response()->json([
+                    'message' => 'No valid images uploaded',
+                    'errors' => $errors,
+                    'files_received' => count($allFiles)
+                ], 400);
+            }
+
             return response()->json([
-                'message' => 'No valid images were uploaded. Check file format (JPG, PNG, GIF) and size (max 5MB)'
-            ], 400);
+                'message' => 'Images uploaded successfully',
+                'images' => $uploadedImages,
+                'count' => count($uploadedImages)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Upload failed: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Images uploaded successfully',
-            'images' => $uploadedImages
-        ]);
     }
 
     public function delete($id)
