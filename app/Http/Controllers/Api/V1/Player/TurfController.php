@@ -12,15 +12,15 @@ class TurfController extends Controller
     public function index(Request $request)
     {
         $query = Turf::with(['images', 'amenities', 'pricing', 'owner.activeSubscription', 'owner'])
-            ->where('status', 'approved')
+            ->where('turfs.status', 'approved')
             ->whereHas('owner.activeSubscription');
 
         if ($request->city) {
-            $query->where('city', $request->city);
+            $query->where('turfs.city', $request->city);
         }
 
         if ($request->search) {
-            $query->where('name', 'like', "%{$request->search}%");
+            $query->where('turfs.name', 'like', "%{$request->search}%");
         }
 
         // Location-based sorting (nearest first)
@@ -28,11 +28,11 @@ class TurfController extends Controller
             $lat = $request->lat;
             $lng = $request->lng;
             
-            $query->whereNotNull('latitude')
-                  ->whereNotNull('longitude')
+            $query->whereNotNull('turfs.latitude')
+                  ->whereNotNull('turfs.longitude')
                   ->selectRaw(
                       'turfs.*, owners.commission_rate,
-                      (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance',
+                      (6371 * acos(cos(radians(?)) * cos(radians(turfs.latitude)) * cos(radians(turfs.longitude) - radians(?)) + sin(radians(?)) * sin(radians(turfs.latitude)))) AS distance',
                       [$lat, $lng, $lat]
                   )
                   ->leftJoin('owners', 'turfs.owner_id', '=', 'owners.id')
