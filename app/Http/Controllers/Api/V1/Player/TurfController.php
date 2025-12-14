@@ -31,19 +31,16 @@ class TurfController extends Controller
             $query->whereNotNull('turfs.latitude')
                   ->whereNotNull('turfs.longitude')
                   ->selectRaw(
-                      'turfs.*, owners.commission_rate,
+                      'turfs.*,
                       (6371 * acos(cos(radians(?)) * cos(radians(turfs.latitude)) * cos(radians(turfs.longitude) - radians(?)) + sin(radians(?)) * sin(radians(turfs.latitude)))) AS distance',
                       [$lat, $lng, $lat]
                   )
-                  ->leftJoin('owners', 'turfs.owner_id', '=', 'owners.id')
                   ->orderBy('distance', 'ASC')
-                  ->orderByRaw('COALESCE(owners.commission_rate, 5.00) DESC');
+                  ->orderBy('turfs.is_featured', 'DESC');
         } else {
-            // Default sorting by commission rate
-            $query->leftJoin('owners', 'turfs.owner_id', '=', 'owners.id')
-                  ->orderByRaw('COALESCE(owners.commission_rate, 5.00) DESC')
-                  ->orderBy('turfs.is_featured', 'DESC')
-                  ->select('turfs.*');
+            // Default sorting by featured status
+            $query->orderBy('turfs.is_featured', 'DESC')
+                  ->orderBy('turfs.id', 'DESC');
         }
 
         $turfs = $query->paginate(15);
