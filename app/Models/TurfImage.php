@@ -11,9 +11,9 @@ class TurfImage extends Model
 
     protected $fillable = [
         'turf_id',
-        'image_url',
+        'image_path',
         'is_primary',
-        'display_order',
+        'order',
     ];
 
     protected $casts = [
