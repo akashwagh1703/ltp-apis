@@ -255,4 +255,14 @@ class TurfController extends Controller
         $turf->update(['status' => 'approved']);
         return response()->json(['message' => 'Turf activated successfully', 'data' => new TurfResource($turf)]);
     }
+
+    public function toggleFeatured($id)
+    {
+        $turf = Turf::findOrFail($id);
+        $turf->update(['is_featured' => !$turf->is_featured]);
+        return response()->json([
+            'message' => $turf->is_featured ? 'Turf marked as featured' : 'Turf removed from featured',
+            'data' => new TurfResource($turf)
+        ]);
+    }
 }

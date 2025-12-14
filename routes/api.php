@@ -21,6 +21,7 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::post('turfs/{id}/reject', 'TurfController@reject');
         Route::post('turfs/{id}/suspend', 'TurfController@suspend');
         Route::post('turfs/{id}/activate', 'TurfController@activate');
+        Route::post('turfs/{id}/toggle-featured', 'TurfController@toggleFeatured');
         Route::post('turfs/{id}/images', 'TurfImageController@upload');
         Route::delete('turf-images/{id}', 'TurfImageController@delete');
         Route::post('turf-images/{id}/set-primary', 'TurfImageController@setPrimary');
