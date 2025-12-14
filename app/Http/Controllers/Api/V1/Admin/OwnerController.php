@@ -47,7 +47,6 @@ class OwnerController extends Controller
             'account_holder_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|digits_between:9,18',
             'ifsc_code' => 'nullable|string|size:11|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
         ], [
             'phone.digits' => 'Phone number must be exactly 10 digits',
             'phone.unique' => 'Phone number already exists',
@@ -67,7 +66,6 @@ class OwnerController extends Controller
             'account_holder_name' => $request->account_holder_name,
             'account_number' => $request->account_number,
             'ifsc_code' => $request->ifsc_code,
-            'commission_rate' => $request->commission_rate,
             'status' => 'active',
         ]);
 
@@ -112,7 +110,6 @@ class OwnerController extends Controller
             'account_holder_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string',
             'ifsc_code' => 'nullable|string|size:11|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/',
-            'commission_rate' => 'nullable|numeric|min:0|max:100',
             'status' => 'nullable|in:active,inactive,suspended',
         ], [
             'phone.digits' => 'Phone number must be exactly 10 digits',
