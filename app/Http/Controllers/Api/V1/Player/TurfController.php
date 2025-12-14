@@ -11,7 +11,7 @@ class TurfController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Turf::with(['images', 'amenities', 'pricing', 'owner.activeSubscription'])
+        $query = Turf::with(['images', 'amenities', 'pricing', 'owner.activeSubscription', 'owner'])
             ->where('status', 'approved')
             ->whereHas('owner.activeSubscription');
 
@@ -23,9 +23,27 @@ class TurfController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
+        // Location-based sorting (nearest first)
         if ($request->lat && $request->lng) {
-            // Nearby turfs logic (simplified)
-            $query->whereNotNull('latitude');
+            $lat = $request->lat;
+            $lng = $request->lng;
+            
+            $query->whereNotNull('latitude')
+                  ->whereNotNull('longitude')
+                  ->selectRaw(
+                      'turfs.*, owners.commission_rate,
+                      (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance',
+                      [$lat, $lng, $lat]
+                  )
+                  ->leftJoin('owners', 'turfs.owner_id', '=', 'owners.id')
+                  ->orderBy('distance', 'ASC')
+                  ->orderByRaw('COALESCE(owners.commission_rate, 5.00) DESC');
+        } else {
+            // Default sorting by commission rate
+            $query->leftJoin('owners', 'turfs.owner_id', '=', 'owners.id')
+                  ->orderByRaw('COALESCE(owners.commission_rate, 5.00) DESC')
+                  ->orderBy('turfs.is_featured', 'DESC')
+                  ->select('turfs.*');
         }
 
         $turfs = $query->paginate(15);

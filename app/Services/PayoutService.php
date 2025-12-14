@@ -12,40 +12,36 @@ class PayoutService
     public function generatePayout($ownerId, $periodStart, $periodEnd)
     {
         $bookings = Booking::where('owner_id', $ownerId)
-            ->where('status', 'completed')
+            ->where('booking_status', 'completed')
             ->whereBetween('booking_date', [$periodStart, $periodEnd])
-            ->whereHas('payment', function ($q) {
-                $q->where('status', 'completed');
-            })
+            ->where('payment_status', 'success')
             ->get();
 
-        $totalRevenue = $bookings->sum('amount');
-        $commissionRate = config('app.commission_percentage', 10);
-        $commissionAmount = ($totalRevenue * $commissionRate) / 100;
-        $payoutAmount = $totalRevenue - $commissionAmount;
+        $totalAmount = $bookings->sum('amount');
+        $commissionAmount = $bookings->sum('platform_commission');
+        $settlementAmount = $bookings->sum('owner_payout');
+        $commissionRate = $bookings->first()->commission_rate ?? 5.00;
 
         $payout = Payout::create([
             'owner_id' => $ownerId,
-            'payout_number' => 'PO' . time() . rand(1000, 9999),
             'period_start' => $periodStart,
             'period_end' => $periodEnd,
             'total_bookings' => $bookings->count(),
-            'total_revenue' => $totalRevenue,
+            'total_amount' => $totalAmount,
+            'commission_percentage' => $commissionRate,
             'commission_amount' => $commissionAmount,
-            'payout_amount' => $payoutAmount,
+            'settlement_amount' => $settlementAmount,
             'status' => 'pending',
         ]);
 
         foreach ($bookings as $booking) {
-            $bookingCommission = ($booking->amount * $commissionRate) / 100;
-            
             PayoutTransaction::create([
                 'payout_id' => $payout->id,
                 'booking_id' => $booking->id,
                 'booking_amount' => $booking->amount,
-                'commission_rate' => $commissionRate,
-                'commission_amount' => $bookingCommission,
-                'owner_amount' => $booking->amount - $bookingCommission,
+                'commission_rate' => $booking->commission_rate,
+                'commission_amount' => $booking->platform_commission,
+                'owner_amount' => $booking->owner_payout,
             ]);
         }
 

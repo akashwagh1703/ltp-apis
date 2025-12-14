@@ -23,6 +23,7 @@ class Owner extends Authenticatable
         'account_number',
         'ifsc_code',
         'status',
+        'commission_rate',
         'fcm_token',
     ];
 
@@ -34,6 +35,7 @@ class Owner extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
+        'commission_rate' => 'decimal:2',
     ];
 
     protected function casts(): array
@@ -66,5 +68,11 @@ class Owner extends Authenticatable
     public function hasActiveSubscription()
     {
         return $this->activeSubscription()->exists();
+    }
+
+    public function getCommissionRate()
+    {
+        // Use owner-specific rate if set, otherwise use platform default
+        return $this->commission_rate ?? Setting::getCommissionRate();
     }
 }
