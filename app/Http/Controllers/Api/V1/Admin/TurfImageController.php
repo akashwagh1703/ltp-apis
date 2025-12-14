@@ -70,27 +70,35 @@ class TurfImageController extends Controller
                 continue;
             }
 
-            // Check file type - use both mime type and extension
+            // Check file type - be more lenient
             $mimeType = $file->getMimeType();
             $extension = strtolower($file->getClientOriginalExtension());
             
-            $allowedMimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif'];
+            $allowedMimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/gif', 'image/jpg', 'application/octet-stream'];
             $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
             
             $validMime = in_array($mimeType, $allowedMimes);
             $validExtension = in_array($extension, $allowedExtensions);
             
+            // Accept if either mime OR extension is valid
             if (!$validMime && !$validExtension) {
                 \Log::error('Invalid file type', [
                     'mime' => $mimeType,
-                    'extension' => $extension
+                    'extension' => $extension,
+                    'name' => $file->getClientOriginalName()
                 ]);
                 continue;
             }
 
-            // Check file size (5MB)
-            if ($file->getSize() > 5242880) {
+            // Check file size (10MB - increased limit)
+            if ($file->getSize() > 10485760) {
                 \Log::error('File too large', ['size' => $file->getSize()]);
+                continue;
+            }
+            
+            // Skip empty files
+            if ($file->getSize() === 0) {
+                \Log::error('Empty file', ['name' => $file->getClientOriginalName()]);
                 continue;
             }
 
