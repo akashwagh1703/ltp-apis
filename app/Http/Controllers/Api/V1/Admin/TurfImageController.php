@@ -54,9 +54,9 @@ class TurfImageController extends Controller
                     if ($path) {
                         $turfImage = TurfImage::create([
                             'turf_id' => $turfId,
-                            'image_url' => $path,
+                            'image_path' => $path,
                             'is_primary' => $existingCount === 0 && $index === 0,
-                            'display_order' => $existingCount + $index,
+                            'order' => $existingCount + $index,
                         ]);
                         
                         $uploadedImages[] = $turfImage;
