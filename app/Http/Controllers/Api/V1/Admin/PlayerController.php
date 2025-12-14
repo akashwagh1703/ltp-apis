@@ -20,10 +20,10 @@ class PlayerController extends Controller
 
             $query = Player::where('status', '!=', 'deleted')
                 ->withCount('bookings')
-                ->selectRaw('players.*, 
-                    (SELECT SUM(amount) FROM bookings WHERE bookings.player_id = players.id AND bookings.booking_status = "completed") as total_spent,
+                ->selectRaw("players.*, 
+                    (SELECT SUM(amount) FROM bookings WHERE bookings.player_id = players.id AND bookings.booking_status = 'completed') as total_spent,
                     (SELECT MAX(booking_date) FROM bookings WHERE bookings.player_id = players.id) as last_booking_date
-                ');
+                ");
 
             if (isset($validated['status'])) {
                 $query->where('status', $validated['status']);
