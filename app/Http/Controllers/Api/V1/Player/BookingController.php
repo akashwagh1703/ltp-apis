@@ -115,6 +115,13 @@ class BookingController extends Controller
             }
 
             $finalAmount = $totalAmount - $discountAmount;
+            
+            // Get owner-specific commission rate (or platform default)
+            $owner = $firstSlot->turf->owner;
+            $commissionRatePercent = $owner->getCommissionRate(); // e.g., 5.00
+            $commissionRate = $commissionRatePercent / 100; // Convert 5.00 to 0.05
+            $platformCommission = $totalAmount * $commissionRate;
+            $ownerPayout = $totalAmount - $platformCommission;
 
             $booking = Booking::create([
                 'booking_number' => 'BK' . time() . rand(1000, 9999),
@@ -129,6 +136,9 @@ class BookingController extends Controller
                 'amount' => $totalAmount,
                 'discount_amount' => $discountAmount,
                 'final_amount' => $finalAmount,
+                'platform_commission' => $platformCommission,
+                'owner_payout' => $ownerPayout,
+                'commission_rate' => $commissionRate * 100, // Store as 5.00
                 'booking_type' => 'online',
                 'booking_status' => 'confirmed',
                 'payment_mode' => 'online',

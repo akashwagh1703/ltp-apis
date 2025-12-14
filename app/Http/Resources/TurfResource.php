@@ -30,6 +30,8 @@ class TurfResource extends JsonResource
             'uniform_price' => $this->uniform_price,
             'status' => $this->status,
             'is_featured' => $this->is_featured,
+            'commission_rate' => $this->owner ? $this->owner->getCommissionRate() : null,
+            'distance' => isset($this->distance) ? round($this->distance, 1) : null,
             'owner' => new OwnerResource($this->whenLoaded('owner')),
             'images' => TurfImageResource::collection($this->whenLoaded('images')),
             'amenities' => TurfAmenityResource::collection($this->whenLoaded('amenities')),

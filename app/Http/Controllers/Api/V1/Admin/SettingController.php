@@ -10,16 +10,20 @@ class SettingController extends Controller
 {
     public function index()
     {
-        return response()->json(Setting::all());
+        $settings = Setting::all()->keyBy('key');
+        return response()->json($settings);
     }
 
     public function update(Request $request)
     {
-        foreach ($request->settings as $key => $value) {
-            Setting::updateOrCreate(
-                ['key' => $key],
-                ['value' => $value]
-            );
+        $request->validate([
+            'settings' => 'required|array',
+            'settings.*.key' => 'required|string',
+            'settings.*.value' => 'required',
+        ]);
+
+        foreach ($request->settings as $setting) {
+            Setting::set($setting['key'], $setting['value']);
         }
 
         return response()->json(['message' => 'Settings updated successfully']);
@@ -27,11 +31,31 @@ class SettingController extends Controller
 
     public function updateSingle(Request $request, $key)
     {
-        $setting = Setting::updateOrCreate(
-            ['key' => $key],
-            ['value' => $request->value]
-        );
+        $request->validate(['value' => 'required']);
+        
+        Setting::set($key, $request->value);
+        
+        return response()->json(['message' => 'Setting updated successfully']);
+    }
 
-        return response()->json(['message' => 'Setting updated successfully', 'data' => $setting]);
+    public function getCommissionRate()
+    {
+        return response()->json([
+            'commission_rate' => Setting::getCommissionRate()
+        ]);
+    }
+
+    public function updateCommissionRate(Request $request)
+    {
+        $request->validate([
+            'rate' => 'required|numeric|min:0|max:100'
+        ]);
+
+        Setting::set('platform_commission_rate', $request->rate, 'decimal', 'Platform commission percentage');
+
+        return response()->json([
+            'message' => 'Commission rate updated successfully',
+            'commission_rate' => $request->rate
+        ]);
     }
 }

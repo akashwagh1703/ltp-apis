@@ -166,4 +166,19 @@ class OwnerController extends Controller
             'data' => new OwnerResource($owner)
         ]);
     }
+
+    public function updateCommissionRate(Request $request, $id)
+    {
+        $request->validate([
+            'commission_rate' => 'nullable|numeric|min:0|max:100'
+        ]);
+
+        $owner = Owner::findOrFail($id);
+        $owner->update(['commission_rate' => $request->commission_rate]);
+
+        return response()->json([
+            'message' => 'Commission rate updated successfully',
+            'data' => new OwnerResource($owner)
+        ]);
+    }
 }

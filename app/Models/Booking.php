@@ -22,6 +22,9 @@ class Booking extends Model
         'amount',
         'discount_amount',
         'final_amount',
+        'platform_commission',
+        'owner_payout',
+        'commission_rate',
         'payment_mode',
         'payment_status',
         'booking_type',
@@ -37,6 +40,9 @@ class Booking extends Model
     protected $casts = [
         'booking_date' => 'date',
         'amount' => 'decimal:2',
+        'platform_commission' => 'decimal:2',
+        'owner_payout' => 'decimal:2',
+        'commission_rate' => 'decimal:2',
         'cancelled_at' => 'datetime',
     ];
 

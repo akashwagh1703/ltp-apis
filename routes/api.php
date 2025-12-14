@@ -15,6 +15,7 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         
         Route::apiResource('owners', 'OwnerController');
         Route::put('owners/{id}/status', 'OwnerController@updateStatus');
+        Route::put('owners/{id}/commission-rate', 'OwnerController@updateCommissionRate');
         Route::apiResource('turfs', 'TurfController');
         Route::post('turfs/{id}/approve', 'TurfController@approve');
         Route::post('turfs/{id}/reject', 'TurfController@reject');
@@ -57,6 +58,8 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::get('settings', 'SettingController@index');
         Route::post('settings', 'SettingController@update');
         Route::put('settings/{key}', 'SettingController@updateSingle');
+        Route::get('settings/commission/rate', 'SettingController@getCommissionRate');
+        Route::put('settings/commission/rate', 'SettingController@updateCommissionRate');
         
         Route::get('subscriptions', 'SubscriptionController@index');
         Route::post('subscriptions', 'SubscriptionController@store');
