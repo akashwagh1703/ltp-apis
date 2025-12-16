@@ -12,6 +12,7 @@ class PayoutService
     public function generatePayout($ownerId, $periodStart, $periodEnd)
     {
         $bookings = Booking::where('owner_id', $ownerId)
+            ->where('booking_type', 'online')
             ->where('booking_status', 'completed')
             ->whereBetween('booking_date', [$periodStart, $periodEnd])
             ->where('payment_status', 'success')
