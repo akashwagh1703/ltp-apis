@@ -142,7 +142,7 @@ class BookingController extends Controller
                 'booking_type' => 'online',
                 'booking_status' => 'confirmed',
                 'payment_mode' => 'online',
-                'payment_status' => 'pending',
+                'payment_status' => 'success',
                 'player_name' => $player->name ?? 'Guest',
                 'player_phone' => $player->phone,
                 'player_email' => $player->email,
