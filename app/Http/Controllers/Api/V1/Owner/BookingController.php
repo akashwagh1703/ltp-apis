@@ -101,6 +101,12 @@ class BookingController extends Controller
         $endTime = \Carbon\Carbon::parse($request->end_time);
         $duration = $startTime->diffInMinutes($endTime);
 
+        // Get owner's commission rate
+        $owner = $request->user();
+        $commissionRate = $owner->commission_rate ?? 5.00;
+        $platformCommission = ($request->amount * $commissionRate) / 100;
+        $ownerPayout = $request->amount - $platformCommission;
+
         // Create booking for first slot
         $booking = Booking::create([
             'booking_number' => 'BK' . time() . rand(1000, 9999),
@@ -115,6 +121,9 @@ class BookingController extends Controller
             'amount' => $request->amount,
             'discount_amount' => 0,
             'final_amount' => $request->amount,
+            'platform_commission' => $platformCommission,
+            'owner_payout' => $ownerPayout,
+            'commission_rate' => $commissionRate,
             'booking_type' => 'offline',
             'booking_status' => 'confirmed',
             'payment_mode' => $request->payment_method,

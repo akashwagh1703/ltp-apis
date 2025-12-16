@@ -31,7 +31,19 @@ class PayoutController extends Controller
 
     public function unpaidBookings(Request $request)
     {
-        $bookings = \App\Models\Booking::where('owner_id', $request->user()->id)
+        $ownerId = $request->user()->id;
+        
+        // Get all completed bookings for this owner
+        $allCompleted = \App\Models\Booking::where('owner_id', $ownerId)
+            ->where('booking_status', 'completed')
+            ->count();
+        
+        \Log::info('Unpaid bookings check', [
+            'owner_id' => $ownerId,
+            'total_completed' => $allCompleted,
+        ]);
+        
+        $bookings = \App\Models\Booking::where('owner_id', $ownerId)
             ->where('booking_status', 'completed')
             ->where('payment_status', 'success')
             ->whereDoesntHave('payoutTransaction')
@@ -39,9 +51,27 @@ class PayoutController extends Controller
             ->latest('booking_date')
             ->get();
 
-        $totalAmount = $bookings->sum('amount');
-        $totalCommission = $bookings->sum('platform_commission');
-        $totalPayout = $bookings->sum('owner_payout');
+        // Calculate totals with fallback for old bookings without commission fields
+        $totalAmount = 0;
+        $totalCommission = 0;
+        $totalPayout = 0;
+        
+        foreach ($bookings as $booking) {
+            $amount = $booking->amount ?? 0;
+            $totalAmount += $amount;
+            
+            // If commission fields exist, use them
+            if ($booking->platform_commission !== null && $booking->owner_payout !== null) {
+                $totalCommission += $booking->platform_commission;
+                $totalPayout += $booking->owner_payout;
+            } else {
+                // Calculate on the fly for old bookings
+                $rate = $booking->commission_rate ?? 5.00;
+                $commission = ($amount * $rate) / 100;
+                $totalCommission += $commission;
+                $totalPayout += ($amount - $commission);
+            }
+        }
 
         return response()->json([
             'bookings' => \App\Http\Resources\BookingResource::collection($bookings),
