@@ -16,12 +16,20 @@ class PayoutService
             ->where('booking_status', 'completed')
             ->whereBetween('booking_date', [$periodStart, $periodEnd])
             ->where('payment_status', 'success')
+            ->whereDoesntHave('payoutTransaction')
             ->get();
+
+        if ($bookings->isEmpty()) {
+            throw new \Exception('No eligible bookings found for this period');
+        }
 
         $totalAmount = $bookings->sum('amount');
         $commissionAmount = $bookings->sum('platform_commission');
         $settlementAmount = $bookings->sum('owner_payout');
-        $commissionRate = $bookings->first()->commission_rate ?? 5.00;
+        
+        // Get owner's commission rate
+        $owner = \App\Models\Owner::findOrFail($ownerId);
+        $commissionRate = $owner->commission_rate ?? 5.00;
 
         $payout = Payout::create([
             'owner_id' => $ownerId,
@@ -40,7 +48,7 @@ class PayoutService
                 'payout_id' => $payout->id,
                 'booking_id' => $booking->id,
                 'booking_amount' => $booking->amount,
-                'commission_rate' => $booking->commission_rate,
+                'commission_rate' => $booking->commission_rate ?? $commissionRate,
                 'commission_amount' => $booking->platform_commission,
                 'owner_amount' => $booking->owner_payout,
             ]);
