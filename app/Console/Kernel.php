@@ -9,11 +9,13 @@ class Kernel extends ConsoleKernel
 {
     protected $commands = [
         Commands\ReleaseExpiredSlotLocks::class,
+        Commands\CompleteExpiredBookings::class,
     ];
 
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('slots:release-locks')->everyMinute();
+        $schedule->command('bookings:complete-expired')->daily();
     }
 
     protected function commands()

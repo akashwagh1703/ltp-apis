@@ -49,10 +49,7 @@ class SlotController extends Controller
             'date' => 'nullable|date',
         ]);
 
-        $query = TurfSlot::with(['booking' => function($q) {
-            $q->select('id', 'slot_id', 'player_name', 'booking_status');
-        }])
-        ->where('turf_id', $request->turf_id);
+        $query = TurfSlot::where('turf_id', $request->turf_id);
         
         if ($request->date) {
             $query->where('date', $request->date);
@@ -73,9 +70,27 @@ class SlotController extends Controller
         
         // Add is_booked flag and display times
         $slots = $slots->map(function($slot) {
-            // Check if slot is booked by status or has active booking
-            $slot->is_booked = in_array($slot->status, ['booked_online', 'booked_offline']) || 
-                              ($slot->booking !== null && in_array($slot->booking->booking_status, ['confirmed', 'completed']));
+            // Check if slot is booked by status
+            $slot->is_booked = in_array($slot->status, ['booked_online', 'booked_offline']);
+            
+            // If booked, find the booking details
+            if ($slot->is_booked) {
+                $booking = \App\Models\Booking::where('turf_id', $slot->turf_id)
+                    ->where('booking_date', $slot->date)
+                    ->where('start_time', '<=', $slot->start_time)
+                    ->where('end_time', '>=', $slot->end_time)
+                    ->whereIn('booking_status', ['confirmed', 'completed'])
+                    ->first();
+                
+                if ($booking) {
+                    $slot->booking = (object)[
+                        'id' => $booking->id,
+                        'player_name' => $booking->player_name,
+                        'booking_status' => $booking->booking_status
+                    ];
+                }
+            }
+            
             $slot->start_time_display = \Carbon\Carbon::parse($slot->start_time)->format('g A');
             $slot->end_time_display = \Carbon\Carbon::parse($slot->end_time)->format('g A');
             return $slot;
