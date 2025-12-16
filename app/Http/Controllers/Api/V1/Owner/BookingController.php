@@ -31,6 +31,14 @@ class BookingController extends Controller
             $query->where('booking_status', $request->status);
         }
 
+        if ($request->booking_type) {
+            $query->where('booking_type', $request->booking_type);
+        }
+
+        if ($request->payment_status) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
         if ($request->turf_id) {
             $query->where('turf_id', $request->turf_id);
         }
