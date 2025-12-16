@@ -15,7 +15,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('slots:release-locks')->everyMinute();
-        $schedule->command('bookings:complete-expired')->daily();
+        $schedule->command('bookings:complete-expired')->everyMinute();
     }
 
     protected function commands()
