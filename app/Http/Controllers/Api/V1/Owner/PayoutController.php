@@ -28,4 +28,29 @@ class PayoutController extends Controller
 
         return new PayoutResource($payout);
     }
+
+    public function unpaidBookings(Request $request)
+    {
+        $bookings = \App\Models\Booking::where('owner_id', $request->user()->id)
+            ->where('booking_status', 'completed')
+            ->where('payment_status', 'success')
+            ->whereDoesntHave('payoutTransaction')
+            ->with(['turf', 'player'])
+            ->latest('booking_date')
+            ->get();
+
+        $totalAmount = $bookings->sum('amount');
+        $totalCommission = $bookings->sum('platform_commission');
+        $totalPayout = $bookings->sum('owner_payout');
+
+        return response()->json([
+            'bookings' => \App\Http\Resources\BookingResource::collection($bookings),
+            'summary' => [
+                'total_bookings' => $bookings->count(),
+                'total_amount' => (float) $totalAmount,
+                'commission_amount' => (float) $totalCommission,
+                'payout_amount' => (float) $totalPayout,
+            ],
+        ]);
+    }
 }
