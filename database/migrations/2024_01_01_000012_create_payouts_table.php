@@ -18,7 +18,7 @@ return new class extends Migration
             $table->decimal('commission_percentage', 5, 2);
             $table->decimal('commission_amount', 10, 2);
             $table->decimal('settlement_amount', 10, 2);
-            $table->enum('status', ['pending', 'processing', 'paid', 'failed'])->default('pending');
+            $table->enum('status', ['pending', 'processed', 'paid', 'failed'])->default('pending');
             $table->date('paid_date')->nullable();
             $table->string('transaction_id')->nullable();
             $table->string('payment_method')->nullable();
