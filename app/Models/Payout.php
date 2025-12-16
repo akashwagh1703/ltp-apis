@@ -11,7 +11,6 @@ class Payout extends Model
 
     protected $fillable = [
         'owner_id',
-        'payout_number',
         'period_start',
         'period_end',
         'total_bookings',
@@ -26,16 +25,6 @@ class Payout extends Model
         'notes',
     ];
 
-    protected static function booted()
-    {
-        static::created(function ($payout) {
-            if (!$payout->payout_number) {
-                $payout->payout_number = 'PO' . date('Ymd') . str_pad($payout->id, 4, '0', STR_PAD_LEFT);
-                $payout->save();
-            }
-        });
-    }
-
     protected $casts = [
         'period_start' => 'date',
         'period_end' => 'date',
@@ -45,6 +34,13 @@ class Payout extends Model
         'settlement_amount' => 'decimal:2',
         'paid_date' => 'date',
     ];
+
+    protected $appends = ['payout_number'];
+
+    public function getPayoutNumberAttribute()
+    {
+        return 'PO' . date('Ymd') . str_pad($this->id, 4, '0', STR_PAD_LEFT);
+    }
 
 
 

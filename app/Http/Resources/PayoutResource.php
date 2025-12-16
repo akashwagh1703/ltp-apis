@@ -10,7 +10,7 @@ class PayoutResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'payout_number' => $this->payout_number ?? 'PO' . str_pad($this->id, 6, '0', STR_PAD_LEFT),
+            'payout_number' => $this->payout_number,
             'period_start' => $this->period_start->format('Y-m-d'),
             'period_end' => $this->period_end->format('Y-m-d'),
             'total_bookings' => $this->total_bookings,
