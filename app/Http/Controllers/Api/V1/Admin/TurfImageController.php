@@ -57,7 +57,9 @@ class TurfImageController extends Controller
 
                     // Store the file manually
                     try {
-                        $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                        $originalName = $file->getClientOriginalName();
+                        $sanitizedName = str_replace(' ', '_', $originalName);
+                        $filename = time() . '_' . $index . '_' . $sanitizedName;
                         $path = $file->storeAs('turfs', $filename, 'public');
                         
                         \Log::info('File stored', [
