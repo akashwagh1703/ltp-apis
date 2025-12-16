@@ -120,7 +120,6 @@ Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group
     Route::middleware(['auth:sanctum', 'owner.auth'])->group(function () {
         Route::post('auth/logout', 'AuthController@logout');
         Route::put('auth/profile', 'AuthController@updateProfile');
-        Route::post('auth/fcm-token', 'AuthController@updateFcmToken');
         
         Route::get('dashboard/stats', 'DashboardController@stats');
         Route::get('dashboard/recent-bookings', 'DashboardController@recentBookings');
