@@ -44,6 +44,7 @@ class PayoutController extends Controller
         ]);
         
         $bookings = \App\Models\Booking::where('owner_id', $ownerId)
+            ->where('booking_type', 'online')
             ->where('booking_status', 'completed')
             ->where('payment_status', 'success')
             ->whereDoesntHave('payoutTransaction')
