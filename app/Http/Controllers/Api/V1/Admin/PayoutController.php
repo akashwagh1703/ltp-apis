@@ -55,10 +55,11 @@ class PayoutController extends Controller
     {
         $payout = Payout::findOrFail($id);
         
-        $payout->update([
-            'status' => 'processed',
-            'processed_at' => now(),
-        ]);
+        if ($payout->status !== 'pending') {
+            return response()->json(['message' => 'Only pending payouts can be processed'], 400);
+        }
+        
+        $payout->update(['status' => 'processed']);
 
         return response()->json(['message' => 'Payout processed successfully']);
     }
@@ -67,9 +68,13 @@ class PayoutController extends Controller
     {
         $payout = Payout::findOrFail($id);
         
+        if ($payout->status !== 'processed') {
+            return response()->json(['message' => 'Only processed payouts can be released'], 400);
+        }
+        
         $payout->update([
             'status' => 'paid',
-            'paid_at' => now(),
+            'paid_date' => now(),
         ]);
 
         return response()->json(['message' => 'Payout released successfully', 'data' => new PayoutResource($payout)]);
