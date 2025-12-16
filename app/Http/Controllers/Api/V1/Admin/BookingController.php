@@ -124,10 +124,13 @@ class BookingController extends Controller
                 'cancelled_at' => now(),
             ]);
 
-            // Update slot status back to available
-            if ($booking->slot) {
-                $booking->slot->update(['status' => 'available']);
-            }
+            // Release all slots for this booking
+            \App\Models\TurfSlot::where('turf_id', $booking->turf_id)
+                ->where('date', $booking->booking_date)
+                ->where('start_time', '>=', $booking->start_time)
+                ->where('end_time', '<=', $booking->end_time)
+                ->whereIn('status', ['booked_online', 'booked_offline'])
+                ->update(['status' => 'available']);
 
             return response()->json([
                 'success' => true,

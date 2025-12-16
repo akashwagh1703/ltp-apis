@@ -97,33 +97,9 @@ class BookingController extends Controller
             'player_phone' => $request->player_phone,
         ]);
 
-        // Mark all slots as booked and link to booking
-        foreach ($slots as $index => $slot) {
+        // Mark all slots as booked
+        foreach ($slots as $slot) {
             $slot->update(['status' => 'booked_offline']);
-            
-            // Create additional booking records for other slots to maintain relationship
-            if ($slot->id !== $firstSlot->id) {
-                Booking::create([
-                    'booking_number' => $booking->booking_number . '-' . ($index + 1),
-                    'player_id' => null,
-                    'turf_id' => $request->turf_id,
-                    'slot_id' => $slot->id,
-                    'owner_id' => $request->user()->id,
-                    'booking_date' => $request->booking_date,
-                    'start_time' => $request->start_time,
-                    'end_time' => $request->end_time,
-                    'slot_duration' => $duration,
-                    'amount' => 0, // Only first booking has amount
-                    'discount_amount' => 0,
-                    'final_amount' => 0,
-                    'booking_type' => 'offline',
-                    'booking_status' => 'confirmed',
-                    'payment_mode' => $request->payment_method,
-                    'payment_status' => 'success',
-                    'player_name' => $request->player_name,
-                    'player_phone' => $request->player_phone,
-                ]);
-            }
         }
 
         try {
@@ -203,5 +179,35 @@ class BookingController extends Controller
             \DB::rollBack();
             return response()->json(['message' => 'Cancellation failed: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function complete($id)
+    {
+        $booking = Booking::where('owner_id', auth()->id())->findOrFail($id);
+
+        if ($booking->booking_status === 'completed') {
+            return response()->json(['message' => 'Booking already completed'], 400);
+        }
+
+        if ($booking->booking_status === 'cancelled') {
+            return response()->json(['message' => 'Cannot complete cancelled booking'], 400);
+        }
+
+        $booking->update(['booking_status' => 'completed']);
+
+        return response()->json(['message' => 'Booking marked as completed']);
+    }
+
+    public function markNoShow($id)
+    {
+        $booking = Booking::where('owner_id', auth()->id())->findOrFail($id);
+
+        if ($booking->booking_status !== 'confirmed') {
+            return response()->json(['message' => 'Only confirmed bookings can be marked as no-show'], 400);
+        }
+
+        $booking->update(['booking_status' => 'no_show']);
+
+        return response()->json(['message' => 'Booking marked as no-show']);
     }
 }
