@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\TurfImageResource;
 use App\Models\TurfImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -108,7 +109,7 @@ class TurfImageController extends Controller
 
             return response()->json([
                 'message' => 'Images uploaded successfully',
-                'images' => $uploadedImages,
+                'images' => TurfImageResource::collection($uploadedImages),
                 'count' => count($uploadedImages)
             ]);
             
