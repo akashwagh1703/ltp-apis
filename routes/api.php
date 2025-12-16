@@ -134,6 +134,7 @@ Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group
         
         Route::get('bookings', 'BookingController@index');
         Route::post('bookings/offline', 'BookingController@createOffline');
+        Route::post('bookings/{id}/cancel', 'BookingController@cancel');
         Route::get('bookings/stats', 'BookingController@stats');
         
         Route::get('payouts', 'PayoutController@index');

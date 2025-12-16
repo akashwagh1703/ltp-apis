@@ -152,4 +152,56 @@ class BookingController extends Controller
             'pending_bookings' => Booking::where('owner_id', $ownerId)->where('payment_status', 'pending')->count(),
         ]);
     }
+
+    public function cancel(Request $request, $id)
+    {
+        try {
+            \DB::beginTransaction();
+
+            $booking = Booking::where('owner_id', auth()->id())->findOrFail($id);
+
+            if ($booking->booking_status === 'cancelled') {
+                return response()->json(['message' => 'Booking already cancelled'], 400);
+            }
+
+            if ($booking->booking_status === 'completed') {
+                return response()->json(['message' => 'Cannot cancel completed booking'], 400);
+            }
+
+            $booking->update([
+                'booking_status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => 'owner',
+                'cancellation_reason' => $request->reason ?? 'Cancelled by owner'
+            ]);
+
+            // Release slots
+            TurfSlot::where('turf_id', $booking->turf_id)
+                ->where('date', $booking->booking_date)
+                ->where('start_time', '>=', $booking->start_time)
+                ->where('end_time', '<=', $booking->end_time)
+                ->whereIn('status', ['booked_online', 'booked_offline'])
+                ->update(['status' => 'available']);
+
+            // Notify player if online booking
+            if ($booking->booking_type === 'online' && $booking->player_id) {
+                try {
+                    $this->notificationService->send(
+                        $booking->player_id,
+                        'player',
+                        'Booking Cancelled',
+                        "Your booking #{$booking->booking_number} has been cancelled by the owner. Reason: {$booking->cancellation_reason}"
+                    );
+                } catch (\Exception $e) {
+                    \Log::error('Notification failed: ' . $e->getMessage());
+                }
+            }
+
+            \DB::commit();
+            return response()->json(['message' => 'Booking cancelled successfully']);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Cancellation failed: ' . $e->getMessage()], 500);
+        }
+    }
 }
