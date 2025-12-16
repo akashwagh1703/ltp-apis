@@ -141,6 +141,7 @@ Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group
         Route::get('bookings/stats', 'BookingController@stats');
         
         Route::get('payouts', 'PayoutController@index');
+        Route::get('payouts/unpaid/bookings', 'PayoutController@unpaidBookings');
         Route::get('payouts/{id}', 'PayoutController@show');
         
         Route::get('reviews', 'ReviewController@index');
