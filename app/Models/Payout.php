@@ -26,6 +26,16 @@ class Payout extends Model
         'notes',
     ];
 
+    protected static function booted()
+    {
+        static::created(function ($payout) {
+            if (!$payout->payout_number) {
+                $payout->payout_number = 'PO' . date('Ymd') . str_pad($payout->id, 4, '0', STR_PAD_LEFT);
+                $payout->save();
+            }
+        });
+    }
+
     protected $casts = [
         'period_start' => 'date',
         'period_end' => 'date',
@@ -36,16 +46,7 @@ class Payout extends Model
         'paid_date' => 'date',
     ];
 
-    protected static function boot()
-    {
-        parent::boot();
-        
-        static::creating(function ($payout) {
-            if (!$payout->payout_number) {
-                $payout->payout_number = 'PO' . date('Ymd') . str_pad($payout->id ?? rand(1000, 9999), 4, '0', STR_PAD_LEFT);
-            }
-        });
-    }
+
 
     public function owner()
     {
