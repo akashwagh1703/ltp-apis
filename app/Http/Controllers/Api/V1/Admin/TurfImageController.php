@@ -13,10 +13,17 @@ class TurfImageController extends Controller
     public function upload(Request $request, $turfId)
     {
         try {
+            \Log::info('Image upload started', [
+                'turf_id' => $turfId,
+                'has_files' => $request->hasFile('images'),
+                'all_files' => array_keys($request->allFiles()),
+            ]);
+
             // Get all files from request
             $allFiles = $request->allFiles();
             
             if (empty($allFiles)) {
+                \Log::error('No files received');
                 return response()->json([
                     'message' => 'No files received',
                     'debug' => [
@@ -48,10 +55,24 @@ class TurfImageController extends Controller
                         continue;
                     }
 
-                    // Store the file
-                    $path = $file->store('turfs', 'public');
-                    
-                    if ($path) {
+                    // Store the file manually
+                    try {
+                        $filename = time() . '_' . $index . '_' . $file->getClientOriginalName();
+                        $path = $file->storeAs('turfs', $filename, 'public');
+                        
+                        \Log::info('File stored', [
+                            'path' => $path,
+                            'turf_id' => $turfId,
+                            'filename' => $filename,
+                            'original' => $file->getClientOriginalName()
+                        ]);
+                        
+                        if (!$path || empty($path)) {
+                            \Log::error('Store returned empty path', ['file' => $file->getClientOriginalName()]);
+                            $errors[] = $file->getClientOriginalName() . ': Storage returned empty path';
+                            continue;
+                        }
+                        
                         $turfImage = TurfImage::create([
                             'turf_id' => $turfId,
                             'image_path' => $path,
@@ -59,10 +80,18 @@ class TurfImageController extends Controller
                             'order' => $existingCount + $index,
                         ]);
                         
+                        \Log::info('Image record created', ['id' => $turfImage->id, 'path' => $path]);
+                        
                         $uploadedImages[] = $turfImage;
                         $index++;
-                    } else {
-                        $errors[] = $file->getClientOriginalName() . ': Storage failed';
+                        
+                    } catch (\Exception $e) {
+                        \Log::error('Storage exception: ' . $e->getMessage(), [
+                            'file' => $file->getClientOriginalName(),
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                        $errors[] = $file->getClientOriginalName() . ': ' . $e->getMessage();
+                        continue;
                     }
                 }
             }
