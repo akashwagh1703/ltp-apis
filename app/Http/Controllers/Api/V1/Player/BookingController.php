@@ -184,15 +184,6 @@ class BookingController extends Controller
                 return response()->json(['message' => 'Cannot cancel completed booking'], 400);
             }
 
-            // Check cancellation window (24 hours before booking)
-            $cancellationHours = config('app.booking_cancellation_hours', 24);
-            $bookingDateTime = \Carbon\Carbon::parse($booking->booking_date . ' ' . $booking->start_time);
-            if (now()->diffInHours($bookingDateTime, false) < $cancellationHours) {
-                return response()->json([
-                    'message' => "Cancellation allowed only {$cancellationHours} hours before booking time"
-                ], 400);
-            }
-
             $booking->update([
                 'booking_status' => 'cancelled',
                 'cancelled_at' => now(),
@@ -200,12 +191,14 @@ class BookingController extends Controller
                 'cancellation_reason' => $request->reason ?? 'Cancelled by player'
             ]);
 
-            // Release all booked slots
+            // Release all booked slots in the booking time range
             TurfSlot::where('turf_id', $booking->turf_id)
                 ->where('date', $booking->booking_date)
-                ->where('start_time', '>=', $booking->start_time)
-                ->where('end_time', '<=', $booking->end_time)
-                ->where('status', 'booked_online')
+                ->where(function($q) use ($booking) {
+                    $q->whereBetween('start_time', [$booking->start_time, $booking->end_time])
+                      ->orWhereBetween('end_time', [$booking->start_time, $booking->end_time]);
+                })
+                ->whereIn('status', ['booked_online', 'booked_offline'])
                 ->update(['status' => 'available']);
 
             \DB::commit();
