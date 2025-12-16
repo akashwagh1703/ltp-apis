@@ -137,6 +137,7 @@ Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group
         Route::post('bookings/{id}/cancel', 'BookingController@cancel');
         Route::post('bookings/{id}/complete', 'BookingController@complete');
         Route::post('bookings/{id}/no-show', 'BookingController@markNoShow');
+        Route::post('bookings/{id}/confirm-payment', 'BookingController@confirmPayment');
         Route::get('bookings/stats', 'BookingController@stats');
         
         Route::get('payouts', 'PayoutController@index');
