@@ -46,27 +46,53 @@ class BookingController extends Controller
 
     public function createOffline(Request $request)
     {
-        $request->validate([
-            'turf_id' => 'required|exists:turfs,id',
-            'slot_ids' => 'required|array',
-            'slot_ids.*' => 'exists:turf_slots,id',
-            'player_name' => 'required|string|max:255',
-            'player_phone' => 'required|string|max:15',
-            'booking_date' => 'required|date',
-            'start_time' => 'required',
-            'end_time' => 'required',
-            'amount' => 'required|numeric',
-            'payment_method' => 'required|in:cash,upi,online,pay_on_turf',
-        ]);
+        try {
+            $validated = $request->validate([
+                'turf_id' => 'required|exists:turfs,id',
+                'slot_ids' => 'required|array',
+                'slot_ids.*' => 'exists:turf_slots,id',
+                'player_name' => 'required|string|max:255',
+                'player_phone' => 'required|string|max:15',
+                'booking_date' => 'required|date',
+                'start_time' => 'required',
+                'end_time' => 'required',
+                'amount' => 'required|numeric',
+                'payment_method' => 'required|in:cash,upi,online,pay_on_turf',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Offline booking validation failed', [
+                'errors' => $e->errors(),
+                'input' => $request->all()
+            ]);
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        }
 
         // Get first slot for primary booking
         $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
         
         // Check all slots are available
         $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
+        
+        if ($slots->count() !== count($request->slot_ids)) {
+            \Log::error('Some slots not found', [
+                'requested' => $request->slot_ids,
+                'found' => $slots->pluck('id')->toArray()
+            ]);
+            return response()->json(['message' => 'Some slots were not found'], 400);
+        }
+        
         foreach ($slots as $slot) {
             if ($slot->status !== 'available') {
-                return response()->json(['message' => 'One or more slots are not available'], 400);
+                \Log::error('Slot not available', [
+                    'slot_id' => $slot->id,
+                    'status' => $slot->status
+                ]);
+                return response()->json([
+                    'message' => "Slot {$slot->start_time} is already {$slot->status}"
+                ], 400);
             }
         }
 
