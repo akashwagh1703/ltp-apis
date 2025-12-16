@@ -151,6 +151,9 @@ class BookingController extends Controller
             // Mark all slots as booked
             TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_online']);
 
+            // Send notification to owner
+            app(NotificationService::class)->sendBookingNotification($booking);
+
             \DB::commit();
             return response()->json(new BookingResource($booking->load('turf', 'payment')), 201);
         } catch (\Exception $e) {

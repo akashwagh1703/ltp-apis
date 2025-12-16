@@ -79,8 +79,16 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $owner = $request->user();
-        $owner->update($request->only(['name', 'email', 'profile_image']));
+        $owner->update($request->only(['name', 'email', 'profile_image', 'fcm_token']));
         return response()->json($owner);
+    }
+
+    public function updateFcmToken(Request $request)
+    {
+        $request->validate(['fcm_token' => 'required|string']);
+        $owner = $request->user();
+        $owner->update(['fcm_token' => $request->fcm_token]);
+        return response()->json(['message' => 'FCM token updated']);
     }
 
     public function me(Request $request)
