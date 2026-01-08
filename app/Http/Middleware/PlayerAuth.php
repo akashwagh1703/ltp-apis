@@ -10,7 +10,8 @@ class PlayerAuth
     public function handle(Request $request, Closure $next)
     {
         if (!auth('sanctum')->check() || !auth('sanctum')->user() instanceof \App\Models\Player) {
-            return response()->json(['message' => 'Unauthorized'], 401);
+            return response()->json(['message' => 'Unauthorized'], 401)
+                ->header('Access-Control-Allow-Origin', '*');
         }
 
         return $next($request);

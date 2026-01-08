@@ -21,14 +21,19 @@ class AuthController extends Controller
 
     public function sendOtp(Request $request)
     {
-        $request->validate(['phone' => 'required|string|max:15']);
+        try {
+            $request->validate(['phone' => 'required|string|max:15']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422)
+                ->header('Access-Control-Allow-Origin', '*');
+        }
 
-        // Rate limiting: 3 attempts per 10 minutes
         $key = 'otp_attempts:' . $request->phone;
         $attempts = \Cache::get($key, 0);
         
         if ($attempts >= 3) {
-            return response()->json(['message' => 'Too many OTP requests. Please try after 10 minutes.'], 429);
+            return response()->json(['message' => 'Too many OTP requests. Please try after 10 minutes.'], 429)
+                ->header('Access-Control-Allow-Origin', '*');
         }
 
         $otp = $this->otpService->generate($request->phone, 'login');
@@ -41,13 +46,19 @@ class AuthController extends Controller
 
     public function verifyOtp(Request $request)
     {
-        $request->validate([
-            'phone' => 'required|string|max:15',
-            'otp' => 'required|string|size:6',
-        ]);
+        try {
+            $request->validate([
+                'phone' => 'required|string|max:15',
+                'otp' => 'required|string|size:6',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422)
+                ->header('Access-Control-Allow-Origin', '*');
+        }
 
         if (!$this->otpService->verify($request->phone, $request->otp, 'login')) {
-            return response()->json(['message' => 'Invalid or expired OTP'], 400);
+            return response()->json(['message' => 'Invalid or expired OTP'], 400)
+                ->header('Access-Control-Allow-Origin', '*');
         }
 
         $player = Player::firstOrCreate(
