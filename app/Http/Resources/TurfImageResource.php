@@ -9,8 +9,8 @@ class TurfImageResource extends JsonResource
 {
     public function toArray($request)
     {
-        $baseUrl = config('app.url');
-        $imageUrl = $baseUrl . '/storage/' . $this->image_path;
+        // Use root storage URL instead of /ltp-apis/public/storage/
+        $imageUrl = 'http://143.110.183.5/storage/' . $this->image_path;
         
         return [
             'id' => $this->id,
