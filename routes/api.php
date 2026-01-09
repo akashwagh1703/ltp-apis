@@ -113,43 +113,43 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
 });
 
 // Owner Routes
-Route::prefix('v1/owner')->namespace('App\Http\Controllers\Api\V1\Owner')->group(function () {
-    Route::post('auth/send-otp', 'AuthController@sendOtp');
-    Route::post('auth/verify-otp', 'AuthController@verifyOtp');
+Route::prefix('v1/owner')->group(function () {
+    Route::post('auth/send-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'sendOtp']);
+    Route::post('auth/verify-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'verifyOtp']);
     
     Route::middleware(['auth:sanctum', 'owner.auth'])->group(function () {
-        Route::post('auth/logout', 'AuthController@logout');
-        Route::put('auth/profile', 'AuthController@updateProfile');
+        Route::post('auth/logout', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'logout']);
+        Route::put('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile']);
         
-        Route::get('dashboard/stats', 'DashboardController@stats');
-        Route::get('dashboard/recent-bookings', 'DashboardController@recentBookings');
+        Route::get('dashboard/stats', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'stats']);
+        Route::get('dashboard/recent-bookings', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'recentBookings']);
         
-        Route::get('turfs', 'TurfController@index');
-        Route::get('turfs/{id}', 'TurfController@show');
-        Route::post('turfs/{id}/request-update', 'TurfController@requestUpdate');
+        Route::get('turfs', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'index']);
+        Route::get('turfs/{id}', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'show']);
+        Route::post('turfs/{id}/request-update', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'requestUpdate']);
         
-        Route::post('slots/generate', 'SlotController@generate');
-        Route::get('slots', 'SlotController@list');
-        Route::post('slots/update-prices', 'SlotController@updatePrices');
+        Route::post('slots/generate', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'generate']);
+        Route::get('slots', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'list']);
+        Route::post('slots/update-prices', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'updatePrices']);
         
-        Route::get('bookings', 'BookingController@index');
-        Route::post('bookings/offline', 'BookingController@createOffline');
-        Route::post('bookings/{id}/cancel', 'BookingController@cancel');
-        Route::post('bookings/{id}/complete', 'BookingController@complete');
-        Route::post('bookings/{id}/no-show', 'BookingController@markNoShow');
-        Route::post('bookings/{id}/confirm-payment', 'BookingController@confirmPayment');
-        Route::get('bookings/stats', 'BookingController@stats');
+        Route::get('bookings', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'index']);
+        Route::post('bookings/offline', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'createOffline']);
+        Route::post('bookings/{id}/cancel', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'cancel']);
+        Route::post('bookings/{id}/complete', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'complete']);
+        Route::post('bookings/{id}/no-show', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'markNoShow']);
+        Route::post('bookings/{id}/confirm-payment', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'confirmPayment']);
+        Route::get('bookings/stats', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'stats']);
         
-        Route::get('payouts', 'PayoutController@index');
-        Route::get('payouts/unpaid/bookings', 'PayoutController@unpaidBookings');
-        Route::get('payouts/{id}', 'PayoutController@show');
+        Route::get('payouts', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'index']);
+        Route::get('payouts/unpaid/bookings', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'unpaidBookings']);
+        Route::get('payouts/{id}', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'show']);
         
-        Route::get('reviews', 'ReviewController@index');
+        Route::get('reviews', [\App\Http\Controllers\Api\V1\Owner\ReviewController::class, 'index']);
         
-        Route::get('notifications', 'NotificationController@index');
-        Route::post('notifications/{id}/read', 'NotificationController@markAsRead');
-        Route::post('notifications/read-all', 'NotificationController@markAllAsRead');
+        Route::get('notifications', [\App\Http\Controllers\Api\V1\Owner\NotificationController::class, 'index']);
+        Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\V1\Owner\NotificationController::class, 'markAsRead']);
+        Route::post('notifications/read-all', [\App\Http\Controllers\Api\V1\Owner\NotificationController::class, 'markAllAsRead']);
         
-        Route::get('me', 'AuthController@me');
+        Route::get('me', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'me']);
     });
 });
