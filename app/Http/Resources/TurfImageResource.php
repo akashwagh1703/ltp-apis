@@ -9,10 +9,13 @@ class TurfImageResource extends JsonResource
 {
     public function toArray($request)
     {
+        $baseUrl = config('app.url');
+        $imageUrl = $baseUrl . '/storage/' . $this->image_path;
+        
         return [
             'id' => $this->id,
             'image_path' => $this->image_path,
-            'image_url' => url('storage/' . $this->image_path),
+            'image_url' => $imageUrl,
             'is_primary' => $this->is_primary,
             'order' => $this->order,
         ];
