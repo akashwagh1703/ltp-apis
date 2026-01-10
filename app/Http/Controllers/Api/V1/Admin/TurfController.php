@@ -114,6 +114,25 @@ class TurfController extends Controller
             }
         }
 
+        // Send WhatsApp notification to owner (non-blocking)
+        try {
+            $owner = $turf->owner;
+            if ($owner && $owner->phone) {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $whatsappService->sendTurfDetails($owner->phone, [
+                    'name' => $turf->name,
+                    'city' => $turf->city,
+                    'state' => $turf->state,
+                    'sport_type' => $turf->sport_type,
+                    'status' => $turf->status,
+                    'owner_name' => $owner->name,
+                    'owner_phone' => $owner->phone,
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('WhatsApp turf notification failed: ' . $e->getMessage());
+        }
+
         return response()->json(new TurfResource($turf->load(['images', 'amenities', 'pricing'])), 201);
     }
 

@@ -37,7 +37,21 @@ class AuthController extends Controller
         }
 
         $otp = $this->otpService->generate($request->phone, 'login');
-        $this->smsService->sendOtp($request->phone, $otp);
+        
+        // Try WhatsApp first, but don't block if it fails
+        try {
+            $whatsappService = app(\App\Services\WhatsAppService::class);
+            $whatsappService->sendOtp($request->phone, $otp, 'player');
+        } catch (\Exception $e) {
+            \Log::warning('WhatsApp OTP failed, continuing: ' . $e->getMessage());
+        }
+        
+        // Fallback to SMS (currently logs only)
+        try {
+            $this->smsService->sendOtp($request->phone, $otp);
+        } catch (\Exception $e) {
+            \Log::warning('SMS OTP failed: ' . $e->getMessage());
+        }
 
         \Cache::put($key, $attempts + 1, now()->addMinutes(10));
 

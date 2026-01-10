@@ -152,6 +152,26 @@ class BookingController extends Controller
             TurfSlot::whereIn('id', $request->slot_ids)->update(['status' => 'booked_online']);
 
             \DB::commit();
+            
+            // Send WhatsApp notification (non-blocking)
+            try {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $whatsappService->sendBookingConfirmation(
+                    $booking->player_phone,
+                    [
+                        'booking_number' => $booking->booking_number,
+                        'turf_name' => $booking->turf->name,
+                        'booking_date' => $booking->booking_date->format('d M Y'),
+                        'start_time' => $booking->start_time,
+                        'end_time' => $booking->end_time,
+                        'final_amount' => $booking->final_amount,
+                    ],
+                    true
+                );
+            } catch (\Exception $e) {
+                \Log::warning('WhatsApp booking notification failed: ' . $e->getMessage());
+            }
+            
             return response()->json(new BookingResource($booking->load('turf', 'payment')), 201);
         } catch (\Exception $e) {
             \DB::rollBack();
@@ -202,6 +222,40 @@ class BookingController extends Controller
                 ->update(['status' => 'available']);
 
             \DB::commit();
+            
+            // Send WhatsApp notifications (non-blocking)
+            try {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                
+                // Notify player
+                $whatsappService->sendCancellationToPlayer(
+                    $booking->player_phone,
+                    [
+                        'booking_number' => $booking->booking_number,
+                        'turf_name' => $booking->turf->name,
+                        'booking_date' => $booking->booking_date->format('d M Y'),
+                        'start_time' => $booking->start_time,
+                        'cancellation_reason' => $booking->cancellation_reason,
+                    ],
+                    'player'
+                );
+                
+                // Notify owner
+                if ($booking->owner && $booking->owner->phone) {
+                    $whatsappService->sendCancellationToOwner(
+                        $booking->owner->phone,
+                        [
+                            'booking_number' => $booking->booking_number,
+                            'player_name' => $booking->player_name,
+                            'booking_date' => $booking->booking_date->format('d M Y'),
+                            'start_time' => $booking->start_time,
+                        ]
+                    );
+                }
+            } catch (\Exception $e) {
+                \Log::warning('WhatsApp cancellation notification failed: ' . $e->getMessage());
+            }
+            
             return response()->json(['message' => 'Booking cancelled successfully']);
         } catch (\Exception $e) {
             \DB::rollBack();
