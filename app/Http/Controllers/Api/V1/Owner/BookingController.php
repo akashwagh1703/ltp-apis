@@ -145,16 +145,24 @@ class BookingController extends Controller
             $slot->update(['status' => 'booked_offline']);
         }
 
+        // Send WhatsApp notification (non-blocking)
         try {
-            $this->smsService->sendBookingConfirmation(
+            $whatsappService = app(\App\Services\WhatsAppService::class);
+            $whatsappService->sendBookingConfirmation(
                 $request->player_phone,
-                $booking->booking_number,
-                $booking->turf->name,
-                $booking->booking_date,
-                $booking->start_time
+                [
+                    'booking_number' => $booking->booking_number,
+                    'turf_name' => $booking->turf->name,
+                    'booking_date' => $booking->booking_date,
+                    'start_time' => $booking->start_time,
+                    'end_time' => $booking->end_time,
+                    'final_amount' => $booking->final_amount,
+                    'payment_mode' => ucfirst($request->payment_method),
+                ],
+                false
             );
         } catch (\Exception $e) {
-            \Log::error('SMS sending failed: ' . $e->getMessage());
+            \Log::warning('WhatsApp offline booking notification failed: ' . $e->getMessage());
         }
 
         return response()->json(new BookingResource($booking->load('turf')), 201);
@@ -218,6 +226,27 @@ class BookingController extends Controller
                 }
             }
 
+            // Send WhatsApp notification (non-blocking)
+            try {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                
+                if ($booking->player_phone) {
+                    $whatsappService->sendCancellationToPlayer(
+                        $booking->player_phone,
+                        [
+                            'booking_number' => $booking->booking_number,
+                            'turf_name' => $booking->turf->name,
+                            'booking_date' => $booking->booking_date->format('d M Y'),
+                            'start_time' => $booking->start_time,
+                            'cancellation_reason' => $booking->cancellation_reason,
+                        ],
+                        'owner'
+                    );
+                }
+            } catch (\Exception $e) {
+                \Log::warning('WhatsApp owner cancellation notification failed: ' . $e->getMessage());
+            }
+
             \DB::commit();
             return response()->json(['message' => 'Booking cancelled successfully']);
         } catch (\Exception $e) {
@@ -239,6 +268,24 @@ class BookingController extends Controller
         }
 
         $booking->update(['booking_status' => 'completed']);
+
+        // Send WhatsApp notification (non-blocking)
+        try {
+            if ($booking->player_phone) {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $whatsappService->sendBookingCompleted(
+                    $booking->player_phone,
+                    [
+                        'booking_number' => $booking->booking_number,
+                        'turf_name' => $booking->turf->name,
+                        'booking_date' => $booking->booking_date->format('d M Y'),
+                        'start_time' => $booking->start_time,
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('WhatsApp booking completion notification failed: ' . $e->getMessage());
+        }
 
         return response()->json(['message' => 'Booking marked as completed']);
     }
