@@ -13,6 +13,8 @@ return [
         'http://localhost:3011',
         'http://localhost:3000',
         'http://143.110.183.5',
+        'https://admin.playltp.in',
+        'https://playltp.in',
     ],
 
     'allowed_origins_patterns' => [],
@@ -23,5 +25,5 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 ];
