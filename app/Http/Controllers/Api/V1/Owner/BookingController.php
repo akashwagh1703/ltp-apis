@@ -54,6 +54,8 @@ class BookingController extends Controller
 
     public function createOffline(Request $request)
     {
+        \Log::info('Offline booking request received', ['data' => $request->all()]);
+        
         try {
             $validated = $request->validate([
                 'turf_id' => 'required|exists:turfs,id',
@@ -78,10 +80,23 @@ class BookingController extends Controller
                 'message' => 'Validation failed',
                 'errors' => $e->errors()
             ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Offline booking error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Server error: ' . $e->getMessage()
+            ], 500);
         }
 
         // Get first slot for primary booking
-        $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
+        try {
+            $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
+        } catch (\Exception $e) {
+            \Log::error('First slot not found', ['slot_id' => $request->slot_ids[0]]);
+            return response()->json(['message' => 'Slot not found'], 404);
+        }
         
         // Check all slots are available
         $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
@@ -136,32 +151,44 @@ class BookingController extends Controller
         $ownerPayout = $request->amount - $platformCommission;
 
         // Create booking for first slot
-        $booking = Booking::create([
-            'booking_number' => 'BK' . time() . rand(1000, 9999),
-            'player_id' => null,
-            'turf_id' => $request->turf_id,
-            'slot_id' => $firstSlot->id,
-            'owner_id' => $request->user()->id,
-            'booking_date' => $request->booking_date,
-            'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
-            'slot_duration' => $duration,
-            'amount' => $request->amount,
-            'discount_amount' => 0,
-            'final_amount' => $request->amount,
-            'paid_amount' => $paidAmount,
-            'pending_amount' => $pendingAmount,
-            'advance_percentage' => $advancePercentage,
-            'platform_commission' => $platformCommission,
-            'owner_payout' => $ownerPayout,
-            'commission_rate' => $commissionRate,
-            'booking_type' => 'offline',
-            'booking_status' => 'confirmed',
-            'payment_mode' => $request->payment_method,
-            'payment_status' => $paymentStatus,
-            'player_name' => $request->player_name,
-            'player_phone' => $request->player_phone,
-        ]);
+        try {
+            $booking = Booking::create([
+                'booking_number' => 'BK' . time() . rand(1000, 9999),
+                'player_id' => null,
+                'turf_id' => $request->turf_id,
+                'slot_id' => $firstSlot->id,
+                'owner_id' => $request->user()->id,
+                'booking_date' => $request->booking_date,
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+                'slot_duration' => $duration,
+                'amount' => $request->amount,
+                'discount_amount' => 0,
+                'final_amount' => $request->amount,
+                'paid_amount' => $paidAmount,
+                'pending_amount' => $pendingAmount,
+                'advance_percentage' => $advancePercentage,
+                'platform_commission' => $platformCommission,
+                'owner_payout' => $ownerPayout,
+                'commission_rate' => $commissionRate,
+                'booking_type' => 'offline',
+                'booking_status' => 'confirmed',
+                'payment_mode' => $request->payment_method,
+                'payment_status' => $paymentStatus,
+                'player_name' => $request->player_name,
+                'player_phone' => $request->player_phone,
+            ]);
+            
+            \Log::info('Booking created successfully', ['booking_id' => $booking->id]);
+        } catch (\Exception $e) {
+            \Log::error('Booking creation failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Failed to create booking: ' . $e->getMessage()
+            ], 500);
+        }
 
         // Mark all slots as booked
         foreach ($slots as $slot) {
@@ -176,7 +203,7 @@ class BookingController extends Controller
                 [
                     'booking_number' => $booking->booking_number,
                     'turf_name' => $booking->turf->name,
-                    'booking_date' => $booking->booking_date,
+                    'booking_date' => $booking->booking_date->format('Y-m-d'),
                     'start_time' => $booking->start_time,
                     'end_time' => $booking->end_time,
                     'final_amount' => $booking->final_amount,
