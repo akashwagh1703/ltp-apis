@@ -66,6 +66,8 @@ class BookingController extends Controller
                 'end_time' => 'required',
                 'amount' => 'required|numeric',
                 'payment_method' => 'required|in:cash,upi,online,pay_on_turf',
+                'payment_type' => 'required|in:full,partial,pay_on_turf',
+                'paid_amount' => 'nullable|numeric|min:0',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Offline booking validation failed', [
@@ -109,6 +111,24 @@ class BookingController extends Controller
         $endTime = \Carbon\Carbon::parse($request->end_time);
         $duration = $startTime->diffInMinutes($endTime);
 
+        // Calculate payment amounts based on payment type
+        $paidAmount = 0;
+        $pendingAmount = $request->amount;
+        $paymentStatus = 'pending';
+        $advancePercentage = null;
+
+        if ($request->payment_type === 'full') {
+            $paidAmount = $request->amount;
+            $pendingAmount = 0;
+            $paymentStatus = 'success';
+        } elseif ($request->payment_type === 'partial') {
+            $paidAmount = $request->paid_amount ?? 0;
+            $pendingAmount = $request->amount - $paidAmount;
+            $paymentStatus = 'partial';
+            $advancePercentage = ($paidAmount / $request->amount) * 100;
+        }
+        // else pay_on_turf: paidAmount = 0, pendingAmount = full amount, status = pending
+
         // Get owner's commission rate
         $owner = $request->user();
         $commissionRate = $owner->commission_rate ?? 5.00;
@@ -129,13 +149,16 @@ class BookingController extends Controller
             'amount' => $request->amount,
             'discount_amount' => 0,
             'final_amount' => $request->amount,
+            'paid_amount' => $paidAmount,
+            'pending_amount' => $pendingAmount,
+            'advance_percentage' => $advancePercentage,
             'platform_commission' => $platformCommission,
             'owner_payout' => $ownerPayout,
             'commission_rate' => $commissionRate,
             'booking_type' => 'offline',
             'booking_status' => 'confirmed',
             'payment_mode' => $request->payment_method,
-            'payment_status' => 'success',
+            'payment_status' => $paymentStatus,
             'player_name' => $request->player_name,
             'player_phone' => $request->player_phone,
         ]);
@@ -303,7 +326,7 @@ class BookingController extends Controller
         return response()->json(['message' => 'Booking marked as no-show']);
     }
 
-    public function confirmPayment($id)
+    public function confirmPayment(Request $request, $id)
     {
         $booking = Booking::where('owner_id', auth()->id())->findOrFail($id);
 
@@ -311,8 +334,32 @@ class BookingController extends Controller
             return response()->json(['message' => 'Payment already confirmed'], 400);
         }
 
-        $booking->update(['payment_status' => 'success']);
+        $validated = $request->validate([
+            'amount' => 'nullable|numeric|min:0',
+        ]);
 
-        return response()->json(['message' => 'Payment confirmed successfully']);
+        // If partial payment, collect remaining amount
+        if ($booking->payment_status === 'partial') {
+            $additionalAmount = $validated['amount'] ?? $booking->pending_amount;
+            $booking->paid_amount += $additionalAmount;
+            $booking->pending_amount -= $additionalAmount;
+            
+            if ($booking->pending_amount <= 0) {
+                $booking->payment_status = 'success';
+                $booking->pending_amount = 0;
+            }
+        } else {
+            // Full payment confirmation for pay_on_turf
+            $booking->paid_amount = $booking->final_amount;
+            $booking->pending_amount = 0;
+            $booking->payment_status = 'success';
+        }
+
+        $booking->save();
+
+        return response()->json([
+            'message' => 'Payment confirmed successfully',
+            'booking' => new BookingResource($booking->load('turf'))
+        ]);
     }
 }
