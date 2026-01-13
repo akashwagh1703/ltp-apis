@@ -46,7 +46,10 @@ class BookingController extends Controller
         $request->validate([
             'slot_ids' => 'required|array',
             'slot_ids.*' => 'exists:turf_slots,id',
-            'coupon_code' => 'nullable|string'
+            'coupon_code' => 'nullable|string',
+            'is_partial_payment' => 'nullable|boolean',
+            'advance_percentage' => 'nullable|numeric|min:0|max:100',
+            'paid_amount' => 'nullable|numeric|min:0'
         ]);
 
         try {
@@ -123,6 +126,23 @@ class BookingController extends Controller
             $platformCommission = $totalAmount * $commissionRate;
             $ownerPayout = $totalAmount - $platformCommission;
 
+            // Handle partial payment
+            $paidAmount = $finalAmount;
+            $pendingAmount = 0;
+            $advancePercentage = null;
+            $paymentStatus = 'success';
+            
+            if ($request->is_partial_payment) {
+                if ($request->paid_amount) {
+                    $paidAmount = min($request->paid_amount, $finalAmount);
+                } elseif ($request->advance_percentage) {
+                    $paidAmount = ($finalAmount * $request->advance_percentage) / 100;
+                    $advancePercentage = $request->advance_percentage;
+                }
+                $pendingAmount = $finalAmount - $paidAmount;
+                $paymentStatus = $pendingAmount > 0 ? 'partial' : 'success';
+            }
+
             $booking = Booking::create([
                 'booking_number' => 'BK' . time() . rand(1000, 9999),
                 'player_id' => $player->id,
@@ -136,13 +156,16 @@ class BookingController extends Controller
                 'amount' => $totalAmount,
                 'discount_amount' => $discountAmount,
                 'final_amount' => $finalAmount,
+                'paid_amount' => $paidAmount,
+                'pending_amount' => $pendingAmount,
+                'advance_percentage' => $advancePercentage,
                 'platform_commission' => $platformCommission,
                 'owner_payout' => $ownerPayout,
                 'commission_rate' => $commissionRate * 100, // Store as 5.00
                 'booking_type' => 'online',
                 'booking_status' => 'confirmed',
                 'payment_mode' => 'online',
-                'payment_status' => 'success',
+                'payment_status' => $paymentStatus,
                 'player_name' => $player->name ?? 'Guest',
                 'player_phone' => $player->phone,
                 'player_email' => $player->email,
