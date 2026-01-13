@@ -54,9 +54,9 @@ class BookingController extends Controller
 
     public function createOffline(Request $request)
     {
-        \Log::info('Offline booking request received', ['data' => $request->all()]);
-        
         try {
+            \Log::info('Offline booking request', $request->all());
+            
             $validated = $request->validate([
                 'turf_id' => 'required|exists:turfs,id',
                 'slot_ids' => 'required|array',
@@ -68,90 +68,66 @@ class BookingController extends Controller
                 'end_time' => 'required',
                 'amount' => 'required|numeric',
                 'payment_method' => 'required|in:cash,upi,online,pay_on_turf',
-                'payment_type' => 'required|in:full,partial,pay_on_turf',
+                'payment_type' => 'nullable|in:full,partial,pay_on_turf',
                 'paid_amount' => 'nullable|numeric|min:0',
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Offline booking validation failed', [
-                'errors' => $e->errors(),
-                'input' => $request->all()
-            ]);
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('Offline booking error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'message' => 'Server error: ' . $e->getMessage()
-            ], 500);
-        }
-
-        // Get first slot for primary booking
-        try {
+            
+            \Log::info('Validation passed');
+            
+            // Get first slot
             $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
-        } catch (\Exception $e) {
-            \Log::error('First slot not found', ['slot_id' => $request->slot_ids[0]]);
-            return response()->json(['message' => 'Slot not found'], 404);
-        }
-        
-        // Check all slots are available
-        $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
-        
-        if ($slots->count() !== count($request->slot_ids)) {
-            \Log::error('Some slots not found', [
-                'requested' => $request->slot_ids,
-                'found' => $slots->pluck('id')->toArray()
-            ]);
-            return response()->json(['message' => 'Some slots were not found'], 400);
-        }
-        
-        foreach ($slots as $slot) {
-            if ($slot->status !== 'available') {
-                \Log::error('Slot not available', [
-                    'slot_id' => $slot->id,
-                    'status' => $slot->status
-                ]);
-                return response()->json([
-                    'message' => "Slot {$slot->start_time} is already {$slot->status}"
-                ], 400);
+            
+            // Check all slots are available
+            $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
+            
+            if ($slots->count() !== count($request->slot_ids)) {
+                return response()->json(['message' => 'Some slots were not found'], 400);
             }
-        }
-
-        // Calculate duration
-        $startTime = \Carbon\Carbon::parse($request->start_time);
-        $endTime = \Carbon\Carbon::parse($request->end_time);
-        $duration = $startTime->diffInMinutes($endTime);
-
-        // Calculate payment amounts based on payment type
-        $paidAmount = 0;
-        $pendingAmount = $request->amount;
-        $paymentStatus = 'pending';
-        $advancePercentage = null;
-
-        if ($request->payment_type === 'full') {
-            $paidAmount = $request->amount;
-            $pendingAmount = 0;
-            $paymentStatus = 'success';
-        } elseif ($request->payment_type === 'partial') {
-            $paidAmount = $request->paid_amount ?? 0;
-            $pendingAmount = $request->amount - $paidAmount;
-            $paymentStatus = 'partial';
-            $advancePercentage = ($paidAmount / $request->amount) * 100;
-        }
-        // else pay_on_turf: paidAmount = 0, pendingAmount = full amount, status = pending
-
-        // Get owner's commission rate
-        $owner = $request->user();
-        $commissionRate = $owner->commission_rate ?? 5.00;
-        $platformCommission = ($request->amount * $commissionRate) / 100;
-        $ownerPayout = $request->amount - $platformCommission;
-
-        // Create booking for first slot
-        try {
+            
+            foreach ($slots as $slot) {
+                if ($slot->status !== 'available') {
+                    return response()->json(['message' => "Slot {$slot->start_time} is already {$slot->status}"], 400);
+                }
+            }
+            
+            // Calculate duration
+            $startTime = \Carbon\Carbon::parse($request->start_time);
+            $endTime = \Carbon\Carbon::parse($request->end_time);
+            $duration = $startTime->diffInMinutes($endTime);
+            
+            // Calculate payment amounts
+            $paymentType = $request->payment_type ?? 'full';
+            $paidAmount = 0;
+            $pendingAmount = $request->amount;
+            $paymentStatus = 'pending';
+            $advancePercentage = null;
+            
+            if ($paymentType === 'full') {
+                $paidAmount = $request->amount;
+                $pendingAmount = 0;
+                $paymentStatus = 'success';
+            } elseif ($paymentType === 'partial') {
+                $paidAmount = $request->paid_amount ?? 0;
+                $pendingAmount = $request->amount - $paidAmount;
+                $paymentStatus = 'partial';
+                if ($paidAmount > 0) {
+                    $advancePercentage = ($paidAmount / $request->amount) * 100;
+                }
+            }
+            
+            \Log::info('Payment calculated', [
+                'paid' => $paidAmount,
+                'pending' => $pendingAmount,
+                'status' => $paymentStatus
+            ]);
+            
+            // Get owner's commission rate
+            $owner = $request->user();
+            $commissionRate = $owner->commission_rate ?? 5.00;
+            $platformCommission = ($request->amount * $commissionRate) / 100;
+            $ownerPayout = $request->amount - $platformCommission;
+            
+            // Create booking
             $booking = Booking::create([
                 'booking_number' => 'BK' . time() . rand(1000, 9999),
                 'player_id' => null,
@@ -179,43 +155,51 @@ class BookingController extends Controller
                 'player_phone' => $request->player_phone,
             ]);
             
-            \Log::info('Booking created successfully', ['booking_id' => $booking->id]);
+            \Log::info('Booking created', ['id' => $booking->id]);
+            
+            // Mark all slots as booked
+            foreach ($slots as $slot) {
+                $slot->update(['status' => 'booked_offline']);
+            }
+            
+            // Send WhatsApp notification (non-blocking)
+            try {
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $whatsappService->sendBookingConfirmation(
+                    $request->player_phone,
+                    [
+                        'booking_number' => $booking->booking_number,
+                        'turf_name' => $booking->turf->name,
+                        'booking_date' => $booking->booking_date->format('Y-m-d'),
+                        'start_time' => $booking->start_time,
+                        'end_time' => $booking->end_time,
+                        'final_amount' => $booking->final_amount,
+                        'payment_mode' => ucfirst($request->payment_method),
+                    ],
+                    false
+                );
+            } catch (\Exception $e) {
+                \Log::warning('WhatsApp notification failed: ' . $e->getMessage());
+            }
+            
+            return response()->json(new BookingResource($booking->load('turf')), 201);
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Validation failed', ['errors' => $e->errors()]);
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             \Log::error('Booking creation failed', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
             ]);
             return response()->json([
-                'message' => 'Failed to create booking: ' . $e->getMessage()
+                'message' => 'Booking failed: ' . $e->getMessage()
             ], 500);
         }
-
-        // Mark all slots as booked
-        foreach ($slots as $slot) {
-            $slot->update(['status' => 'booked_offline']);
-        }
-
-        // Send WhatsApp notification (non-blocking)
-        try {
-            $whatsappService = app(\App\Services\WhatsAppService::class);
-            $whatsappService->sendBookingConfirmation(
-                $request->player_phone,
-                [
-                    'booking_number' => $booking->booking_number,
-                    'turf_name' => $booking->turf->name,
-                    'booking_date' => $booking->booking_date->format('Y-m-d'),
-                    'start_time' => $booking->start_time,
-                    'end_time' => $booking->end_time,
-                    'final_amount' => $booking->final_amount,
-                    'payment_mode' => ucfirst($request->payment_method),
-                ],
-                false
-            );
-        } catch (\Exception $e) {
-            \Log::warning('WhatsApp offline booking notification failed: ' . $e->getMessage());
-        }
-
-        return response()->json(new BookingResource($booking->load('turf')), 201);
     }
 
     public function stats(Request $request)
