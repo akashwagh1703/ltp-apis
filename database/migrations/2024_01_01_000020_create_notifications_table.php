@@ -10,17 +10,17 @@ return new class extends Migration
     {
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
-            $table->enum('user_type', ['player', 'owner', 'admin']);
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->enum('user_type', ['owner', 'player', 'admin'])->nullable();
             $table->string('title');
-            $table->text('message');
-            $table->string('type');
+            $table->text('body');
             $table->json('data')->nullable();
-            $table->boolean('is_read')->default(false);
+            $table->enum('type', ['booking', 'payment', 'review', 'promotional', 'reminder', 'general', 'cancellation'])->default('general');
+            $table->timestamp('read_at')->nullable();
             $table->timestamps();
             
-            $table->index(['user_type', 'user_id']);
-            $table->index('is_read');
+            $table->index(['user_id', 'user_type']);
+            $table->index('created_at');
         });
     }
 
