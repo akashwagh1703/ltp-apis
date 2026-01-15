@@ -14,17 +14,26 @@ use Kreait\Firebase\Messaging\Notification as FirebaseNotification;
 class FcmService
 {
     protected $messaging;
+    protected $enabled = false;
 
     public function __construct()
     {
         $credentialsPath = base_path(config('services.fcm.credentials_path'));
         
         if (!file_exists($credentialsPath)) {
-            throw new \Exception('Firebase credentials file not found at: ' . $credentialsPath);
+            Log::warning('Firebase credentials file not found. FCM notifications disabled.');
+            $this->enabled = false;
+            return;
         }
         
-        $factory = (new Factory)->withServiceAccount($credentialsPath);
-        $this->messaging = $factory->createMessaging();
+        try {
+            $factory = (new Factory)->withServiceAccount($credentialsPath);
+            $this->messaging = $factory->createMessaging();
+            $this->enabled = true;
+        } catch (\Exception $e) {
+            Log::error('Failed to initialize Firebase: ' . $e->getMessage());
+            $this->enabled = false;
+        }
     }
 
     public function sendToUserAsync($userId, $userType, $title, $body, $data = [], $type = 'general')
@@ -34,6 +43,11 @@ class FcmService
 
     public function sendToUser($userId, $userType, $title, $body, $data = [], $type = 'general')
     {
+        if (!$this->enabled) {
+            Log::info('FCM disabled - skipping notification', compact('userId', 'userType', 'title'));
+            return false;
+        }
+
         $tokens = FcmToken::where('user_id', $userId)
             ->where('user_type', $userType)
             ->pluck('token')
@@ -58,6 +72,11 @@ class FcmService
 
     public function sendToAll($userType, $title, $body, $data = [], $type = 'general')
     {
+        if (!$this->enabled) {
+            Log::info('FCM disabled - skipping broadcast notification', compact('userType', 'title'));
+            return false;
+        }
+
         $tokens = FcmToken::where('user_type', $userType)
             ->pluck('token')
             ->toArray();
