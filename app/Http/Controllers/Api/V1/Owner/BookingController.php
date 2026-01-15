@@ -355,6 +355,10 @@ class BookingController extends Controller
             'amount' => 'nullable|numeric|min:0',
         ]);
 
+        $previousPaidAmount = $booking->paid_amount;
+        $previousPendingAmount = $booking->pending_amount;
+        $additionalAmount = 0;
+
         // If partial payment, collect remaining amount
         if ($booking->payment_status === 'pending' && $booking->pending_amount > 0) {
             $additionalAmount = $validated['amount'] ?? $booking->pending_amount;
@@ -367,6 +371,7 @@ class BookingController extends Controller
             }
         } else {
             // Full payment confirmation for pay_on_turf
+            $additionalAmount = $booking->final_amount;
             $booking->paid_amount = $booking->final_amount;
             $booking->pending_amount = 0;
             $booking->payment_status = 'success';
@@ -376,6 +381,14 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => 'Payment confirmed successfully',
+            'payment_details' => [
+                'previous_paid_amount' => (float) $previousPaidAmount,
+                'additional_amount_paid' => (float) $additionalAmount,
+                'total_paid_amount' => (float) $booking->paid_amount,
+                'remaining_amount' => (float) $booking->pending_amount,
+                'total_booking_amount' => (float) $booking->final_amount,
+                'payment_status' => $booking->payment_status,
+            ],
             'booking' => new BookingResource($booking->load('turf'))
         ]);
     }
