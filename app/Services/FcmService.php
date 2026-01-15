@@ -4,19 +4,32 @@ namespace App\Services;
 
 use App\Models\FcmToken;
 use App\Models\Notification;
-use Illuminate\Support\Facades\Http;
+use App\Models\NotificationLog;
+use App\Jobs\SendFcmNotification;
 use Illuminate\Support\Facades\Log;
+use Kreait\Firebase\Factory;
+use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\Notification as FirebaseNotification;
 
 class FcmService
 {
-    protected $credentialsPath;
-    protected $projectId;
+    protected $messaging;
 
     public function __construct()
     {
-        $this->credentialsPath = base_path(config('services.fcm.credentials_path'));
-        $credentials = json_decode(file_get_contents($this->credentialsPath), true);
-        $this->projectId = $credentials['project_id'];
+        $credentialsPath = base_path(config('services.fcm.credentials_path'));
+        
+        if (!file_exists($credentialsPath)) {
+            throw new \Exception('Firebase credentials file not found at: ' . $credentialsPath);
+        }
+        
+        $factory = (new Factory)->withServiceAccount($credentialsPath);
+        $this->messaging = $factory->createMessaging();
+    }
+
+    public function sendToUserAsync($userId, $userType, $title, $body, $data = [], $type = 'general')
+    {
+        SendFcmNotification::dispatch($userId, $userType, $title, $body, $data, $type);
     }
 
     public function sendToUser($userId, $userType, $title, $body, $data = [], $type = 'general')
@@ -31,7 +44,6 @@ class FcmService
             return false;
         }
 
-        // Store notification in database
         Notification::create([
             'user_id' => $userId,
             'user_type' => $userType,
@@ -55,7 +67,6 @@ class FcmService
             return false;
         }
 
-        // Store notification for all users
         $userIds = FcmToken::where('user_type', $userType)
             ->distinct()
             ->pluck('user_id');
@@ -76,40 +87,64 @@ class FcmService
 
     protected function sendToTokens($tokens, $title, $body, $data = [])
     {
-        $accessToken = $this->getAccessToken();
-        if (!$accessToken) {
-            Log::error('Failed to get FCM access token');
-            return false;
-        }
-
+        $notification = FirebaseNotification::create($title, $body);
         $success = true;
-        foreach ($tokens as $token) {
-            $payload = [
-                'message' => [
-                    'token' => $token,
-                    'notification' => [
-                        'title' => $title,
-                        'body' => $body,
-                    ],
-                    'data' => $data,
-                    'android' => [
-                        'priority' => 'high',
-                    ],
-                ],
-            ];
 
+        // Send in batches of 500 (FCM limit)
+        $batches = array_chunk($tokens, 500);
+
+        foreach ($batches as $batch) {
             try {
-                $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $accessToken,
-                    'Content-Type' => 'application/json',
-                ])->post("https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send", $payload);
+                $message = CloudMessage::new()
+                    ->withNotification($notification)
+                    ->withData($data);
 
-                if (!$response->successful()) {
-                    Log::error('FCM notification failed', ['token' => $token, 'response' => $response->body()]);
+                $report = $this->messaging->sendMulticast($message, $batch);
+
+                // Log successful sends
+                foreach ($report->successes()->getItems() as $success) {
+                    NotificationLog::create([
+                        'user_id' => 0,
+                        'user_type' => 'player',
+                        'fcm_token' => $success->target()->value(),
+                        'status' => 'success',
+                        'sent_at' => now(),
+                    ]);
+                }
+
+                // Remove invalid tokens and log
+                foreach ($report->invalidTokens() as $invalidToken) {
+                    FcmToken::where('token', $invalidToken)->delete();
+                    NotificationLog::create([
+                        'user_id' => 0,
+                        'user_type' => 'player',
+                        'fcm_token' => $invalidToken,
+                        'status' => 'invalid_token',
+                        'sent_at' => now(),
+                    ]);
+                    Log::info("Removed invalid FCM token: {$invalidToken}");
+                }
+
+                // Log failures
+                if ($report->hasFailures()) {
+                    foreach ($report->failures()->getItems() as $failure) {
+                        NotificationLog::create([
+                            'user_id' => 0,
+                            'user_type' => 'player',
+                            'fcm_token' => $failure->target()->value(),
+                            'status' => 'failed',
+                            'error_message' => $failure->error()->getMessage(),
+                            'sent_at' => now(),
+                        ]);
+                        Log::error('FCM send failed', [
+                            'token' => $failure->target()->value(),
+                            'error' => $failure->error()->getMessage()
+                        ]);
+                    }
                     $success = false;
                 }
             } catch (\Exception $e) {
-                Log::error('FCM notification exception: ' . $e->getMessage());
+                Log::error('FCM batch send exception: ' . $e->getMessage());
                 $success = false;
             }
         }
@@ -117,143 +152,98 @@ class FcmService
         return $success;
     }
 
-    protected function getAccessToken()
-    {
-        try {
-            $credentials = json_decode(file_get_contents($this->credentialsPath), true);
-            $now = time();
-            $payload = [
-                'iss' => $credentials['client_email'],
-                'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-                'aud' => 'https://oauth2.googleapis.com/token',
-                'iat' => $now,
-                'exp' => $now + 3600,
-            ];
-
-            $jwt = $this->createJWT($payload, $credentials['private_key']);
-
-            $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
-                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion' => $jwt,
-            ]);
-
-            if ($response->successful()) {
-                return $response->json()['access_token'];
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Failed to get access token: ' . $e->getMessage());
-            return null;
-        }
-    }
-
-    protected function createJWT($payload, $privateKey)
-    {
-        $header = ['alg' => 'RS256', 'typ' => 'JWT'];
-        $segments = [
-            $this->base64UrlEncode(json_encode($header)),
-            $this->base64UrlEncode(json_encode($payload)),
-        ];
-        $signingInput = implode('.', $segments);
-        
-        openssl_sign($signingInput, $signature, $privateKey, OPENSSL_ALGO_SHA256);
-        $segments[] = $this->base64UrlEncode($signature);
-        
-        return implode('.', $segments);
-    }
-
-    protected function base64UrlEncode($data)
-    {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-    }
-
-    public function sendBookingNotification($booking, $toOwner = false)
+    public function sendBookingNotification($booking, $toOwner = false, $async = true)
     {
         if ($toOwner) {
-            return $this->sendToUser(
+            $method = $async ? 'sendToUserAsync' : 'sendToUser';
+            return $this->$method(
                 $booking->owner_id,
                 'owner',
                 'New Booking Received',
                 "Booking #{$booking->booking_number} for {$booking->turf->name}",
                 [
                     'type' => 'booking',
-                    'booking_id' => $booking->id,
+                    'booking_id' => (string)$booking->id,
                     'booking_number' => $booking->booking_number,
                 ],
                 'booking'
             );
         }
 
-        return $this->sendToUser(
+        $method = $async ? 'sendToUserAsync' : 'sendToUser';
+        return $this->$method(
             $booking->player_id,
             'player',
             'Booking Confirmed',
             "Your booking #{$booking->booking_number} at {$booking->turf->name} is confirmed",
             [
                 'type' => 'booking',
-                'booking_id' => $booking->id,
+                'booking_id' => (string)$booking->id,
                 'booking_number' => $booking->booking_number,
             ],
             'booking'
         );
     }
 
-    public function sendCancellationNotification($booking, $toOwner = false)
+    public function sendCancellationNotification($booking, $toOwner = false, $async = true)
     {
         if ($toOwner) {
-            return $this->sendToUser(
+            $method = $async ? 'sendToUserAsync' : 'sendToUser';
+            return $this->$method(
                 $booking->owner_id,
                 'owner',
                 'Booking Cancelled',
                 "Booking #{$booking->booking_number} has been cancelled",
                 [
                     'type' => 'cancellation',
-                    'booking_id' => $booking->id,
+                    'booking_id' => (string)$booking->id,
                 ],
-                'booking'
+                'cancellation'
             );
         }
 
-        return $this->sendToUser(
+        $method = $async ? 'sendToUserAsync' : 'sendToUser';
+        return $this->$method(
             $booking->player_id,
             'player',
             'Booking Cancelled',
             "Your booking #{$booking->booking_number} has been cancelled",
             [
                 'type' => 'cancellation',
-                'booking_id' => $booking->id,
+                'booking_id' => (string)$booking->id,
             ],
-            'booking'
+            'cancellation'
         );
     }
 
-    public function sendPaymentNotification($booking)
+    public function sendPaymentNotification($booking, $async = true)
     {
-        return $this->sendToUser(
+        $method = $async ? 'sendToUserAsync' : 'sendToUser';
+        return $this->$method(
             $booking->owner_id,
             'owner',
             'Payment Received',
             "Payment of ₹{$booking->paid_amount} received for booking #{$booking->booking_number}",
             [
                 'type' => 'payment',
-                'booking_id' => $booking->id,
-                'amount' => $booking->paid_amount,
+                'booking_id' => (string)$booking->id,
+                'amount' => (string)$booking->paid_amount,
             ],
             'payment'
         );
     }
 
-    public function sendReminderNotification($booking)
+    public function sendReminderNotification($booking, $async = true)
     {
-        return $this->sendToUser(
+        $method = $async ? 'sendToUserAsync' : 'sendToUser';
+        return $this->$method(
             $booking->player_id,
             'player',
             'Booking Reminder',
             "Your booking at {$booking->turf->name} starts in 2 hours",
             [
                 'type' => 'reminder',
-                'booking_id' => $booking->id,
+                'booking_id' => (string)$booking->id,
             ],
             'reminder'
         );

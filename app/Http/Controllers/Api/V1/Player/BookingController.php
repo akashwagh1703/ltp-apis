@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\TurfSlot;
-use App\Services\NotificationService;
+use App\Services\FcmService;
 use App\Services\PaymentService;
 use App\Services\SlotService;
 use App\Services\SmsService;
@@ -17,18 +17,18 @@ class BookingController extends Controller
     protected $slotService;
     protected $paymentService;
     protected $smsService;
-    protected $notificationService;
+    protected $fcmService;
 
     public function __construct(
         SlotService $slotService,
         PaymentService $paymentService,
         SmsService $smsService,
-        NotificationService $notificationService
+        FcmService $fcmService
     ) {
         $this->slotService = $slotService;
         $this->paymentService = $paymentService;
         $this->smsService = $smsService;
-        $this->notificationService = $notificationService;
+        $this->fcmService = $fcmService;
     }
 
     public function index(Request $request)
@@ -178,8 +178,7 @@ class BookingController extends Controller
             
             // Send FCM notification to owner
             try {
-                $fcmService = app(\App\Services\FcmService::class);
-                $fcmService->sendBookingNotification($booking, true);
+                $this->fcmService->sendBookingNotification($booking, true);
             } catch (\Exception $e) {
                 \Log::warning('FCM notification failed: ' . $e->getMessage());
             }
@@ -256,9 +255,8 @@ class BookingController extends Controller
             
             // Send FCM notifications
             try {
-                $fcmService = app(\App\Services\FcmService::class);
-                $fcmService->sendCancellationNotification($booking, false);
-                $fcmService->sendCancellationNotification($booking, true);
+                $this->fcmService->sendCancellationNotification($booking, false);
+                $this->fcmService->sendCancellationNotification($booking, true);
             } catch (\Exception $e) {
                 \Log::warning('FCM notification failed: ' . $e->getMessage());
             }

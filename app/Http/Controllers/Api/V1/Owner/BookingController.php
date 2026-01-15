@@ -7,19 +7,19 @@ use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\TurfSlot;
-use App\Services\NotificationService;
+use App\Services\FcmService;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
     protected $smsService;
-    protected $notificationService;
+    protected $fcmService;
 
-    public function __construct(SmsService $smsService, NotificationService $notificationService)
+    public function __construct(SmsService $smsService, FcmService $fcmService)
     {
         $this->smsService = $smsService;
-        $this->notificationService = $notificationService;
+        $this->fcmService = $fcmService;
     }
 
     public function index(Request $request)
@@ -249,14 +249,9 @@ class BookingController extends Controller
             // Notify player if online booking
             if ($booking->booking_type === 'online' && $booking->player_id) {
                 try {
-                    $this->notificationService->send(
-                        $booking->player_id,
-                        'player',
-                        'Booking Cancelled',
-                        "Your booking #{$booking->booking_number} has been cancelled by the owner. Reason: {$booking->cancellation_reason}"
-                    );
+                    $this->fcmService->sendCancellationNotification($booking, false);
                 } catch (\Exception $e) {
-                    \Log::error('Notification failed: ' . $e->getMessage());
+                    \Log::error('FCM notification failed: ' . $e->getMessage());
                 }
             }
 

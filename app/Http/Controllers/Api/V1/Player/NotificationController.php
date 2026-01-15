@@ -24,7 +24,7 @@ class NotificationController extends Controller
             ->where('user_id', auth()->id())
             ->findOrFail($id);
 
-        $notification->update(['is_read' => true]);
+        $notification->markAsRead();
 
         return response()->json(['message' => 'Marked as read']);
     }
@@ -33,8 +33,8 @@ class NotificationController extends Controller
     {
         Notification::where('user_type', 'player')
             ->where('user_id', auth()->id())
-            ->where('is_read', false)
-            ->update(['is_read' => true]);
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
 
         return response()->json(['message' => 'All marked as read']);
     }
