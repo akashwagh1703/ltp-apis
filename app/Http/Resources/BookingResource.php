@@ -8,7 +8,7 @@ class BookingResource extends JsonResource
 {
     public function toArray($request)
     {
-        return [
+        $data = [
             'id' => $this->id,
             'booking_number' => $this->booking_number,
             'booking_date' => $this->booking_date->format('Y-m-d'),
@@ -18,6 +18,7 @@ class BookingResource extends JsonResource
             'discount_amount' => (float) ($this->discount_amount ?? 0),
             'final_amount' => (float) ($this->final_amount ?? $this->amount),
             'booking_type' => $this->booking_type,
+            'payment_mode' => $this->payment_mode ?? 'online',
             'status' => $this->booking_status,
             'payment_status' => $this->payment_status,
             'player_name' => $this->player_name,
@@ -35,5 +36,30 @@ class BookingResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+
+        // Add new fields only if they exist in database
+        if (isset($this->slot_duration)) {
+            $data['slot_duration'] = $this->slot_duration;
+        }
+        if (isset($this->paid_amount)) {
+            $data['paid_amount'] = (float) $this->paid_amount;
+        }
+        if (isset($this->pending_amount)) {
+            $data['pending_amount'] = (float) $this->pending_amount;
+        }
+        if (isset($this->advance_percentage)) {
+            $data['advance_percentage'] = $this->advance_percentage ? (float) $this->advance_percentage : null;
+        }
+        if (isset($this->platform_commission)) {
+            $data['platform_commission'] = (float) $this->platform_commission;
+        }
+        if (isset($this->owner_payout)) {
+            $data['owner_payout'] = (float) $this->owner_payout;
+        }
+        if (isset($this->commission_rate)) {
+            $data['commission_rate'] = (float) $this->commission_rate;
+        }
+
+        return $data;
     }
 }

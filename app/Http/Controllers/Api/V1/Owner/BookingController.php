@@ -24,32 +24,43 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $query = Booking::with(['turf', 'player', 'payment'])
-            ->where('owner_id', $request->user()->id);
+        try {
+            $query = Booking::with(['turf', 'player', 'payment'])
+                ->where('owner_id', $request->user()->id);
 
-        if ($request->status) {
-            $query->where('booking_status', $request->status);
+            if ($request->status) {
+                $query->where('booking_status', $request->status);
+            }
+
+            if ($request->booking_type) {
+                $query->where('booking_type', $request->booking_type);
+            }
+
+            if ($request->payment_status) {
+                $query->where('payment_status', $request->payment_status);
+            }
+
+            if ($request->turf_id) {
+                $query->where('turf_id', $request->turf_id);
+            }
+
+            if ($request->date) {
+                $query->whereDate('booking_date', $request->date);
+            }
+
+            $bookings = $query->latest()->paginate(15);
+
+            return BookingResource::collection($bookings);
+        } catch (\Exception $e) {
+            \Log::error('Booking listing failed', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ]);
+            return response()->json([
+                'message' => 'Failed to fetch bookings: ' . $e->getMessage()
+            ], 500);
         }
-
-        if ($request->booking_type) {
-            $query->where('booking_type', $request->booking_type);
-        }
-
-        if ($request->payment_status) {
-            $query->where('payment_status', $request->payment_status);
-        }
-
-        if ($request->turf_id) {
-            $query->where('turf_id', $request->turf_id);
-        }
-
-        if ($request->date) {
-            $query->whereDate('booking_date', $request->date);
-        }
-
-        $bookings = $query->latest()->paginate(15);
-
-        return BookingResource::collection($bookings);
     }
 
     public function createOffline(Request $request)
@@ -109,7 +120,7 @@ class BookingController extends Controller
             } elseif ($paymentType === 'partial') {
                 $paidAmount = $request->paid_amount ?? 0;
                 $pendingAmount = $request->amount - $paidAmount;
-                $paymentStatus = 'partial';
+                $paymentStatus = $paidAmount > 0 ? 'pending' : 'pending'; // Use 'pending' until migration runs
                 if ($paidAmount > 0) {
                     $advancePercentage = ($paidAmount / $request->amount) * 100;
                 }
@@ -345,7 +356,7 @@ class BookingController extends Controller
         ]);
 
         // If partial payment, collect remaining amount
-        if ($booking->payment_status === 'partial') {
+        if ($booking->payment_status === 'pending' && $booking->pending_amount > 0) {
             $additionalAmount = $validated['amount'] ?? $booking->pending_amount;
             $booking->paid_amount += $additionalAmount;
             $booking->pending_amount -= $additionalAmount;
