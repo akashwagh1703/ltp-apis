@@ -41,7 +41,7 @@ return [
     ],
 
     'fcm' => [
-        'server_key' => env('FCM_SERVER_KEY'),
+        'credentials_path' => env('FIREBASE_CREDENTIALS', 'storage/firebase-credentials.json'),
     ],
 
     'whatsapp' => [

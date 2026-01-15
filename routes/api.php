@@ -69,6 +69,10 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('subscriptions/plans/{id}', 'SubscriptionController@updatePlan');
         Route::get('subscriptions/owners-without', 'SubscriptionController@ownersWithoutSubscription');
         Route::get('subscriptions/statistics', 'SubscriptionController@statistics');
+        
+        Route::get('notifications/list', 'NotificationController@index');
+        Route::post('notifications/send-to-user', 'NotificationController@sendToUser');
+        Route::post('notifications/send-to-all', 'NotificationController@sendToAll');
     });
 });
 
@@ -103,6 +107,11 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
         
         Route::post('reviews', 'ReviewController@store');
         Route::get('reviews/my', 'ReviewController@myReviews');
+        
+        Route::post('fcm/register-token', 'FcmController@registerToken');
+        Route::get('fcm/notifications', 'FcmController@getNotifications');
+        Route::post('fcm/notifications/{id}/read', 'FcmController@markAsRead');
+        Route::post('fcm/notifications/read-all', 'FcmController@markAllAsRead');
         
         Route::get('notifications', 'NotificationController@index');
         Route::post('notifications/{id}/read', 'NotificationController@markAsRead');
@@ -145,6 +154,11 @@ Route::prefix('v1/owner')->group(function () {
         Route::get('payouts/{id}', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'show']);
         
         Route::get('reviews', [\App\Http\Controllers\Api\V1\Owner\ReviewController::class, 'index']);
+        
+        Route::post('fcm/register-token', [\App\Http\Controllers\Api\V1\Owner\FcmController::class, 'registerToken']);
+        Route::get('fcm/notifications', [\App\Http\Controllers\Api\V1\Owner\FcmController::class, 'getNotifications']);
+        Route::post('fcm/notifications/{id}/read', [\App\Http\Controllers\Api\V1\Owner\FcmController::class, 'markAsRead']);
+        Route::post('fcm/notifications/read-all', [\App\Http\Controllers\Api\V1\Owner\FcmController::class, 'markAllAsRead']);
         
         Route::get('notifications', [\App\Http\Controllers\Api\V1\Owner\NotificationController::class, 'index']);
         Route::post('notifications/{id}/read', [\App\Http\Controllers\Api\V1\Owner\NotificationController::class, 'markAsRead']);

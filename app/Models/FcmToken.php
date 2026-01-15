@@ -4,21 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Notification extends Model
+class FcmToken extends Model
 {
     protected $fillable = [
         'user_id',
         'user_type',
-        'title',
-        'body',
-        'data',
-        'type',
-        'read_at',
-    ];
-
-    protected $casts = [
-        'data' => 'array',
-        'read_at' => 'datetime',
+        'token',
+        'device_type',
     ];
 
     public function user()
@@ -27,10 +19,5 @@ class Notification extends Model
             return $this->belongsTo(Owner::class, 'user_id');
         }
         return $this->belongsTo(Player::class, 'user_id');
-    }
-
-    public function markAsRead()
-    {
-        $this->update(['read_at' => now()]);
     }
 }

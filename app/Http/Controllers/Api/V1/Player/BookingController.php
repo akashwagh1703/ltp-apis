@@ -176,6 +176,14 @@ class BookingController extends Controller
 
             \DB::commit();
             
+            // Send FCM notification to owner
+            try {
+                $fcmService = app(\App\Services\FcmService::class);
+                $fcmService->sendBookingNotification($booking, true);
+            } catch (\Exception $e) {
+                \Log::warning('FCM notification failed: ' . $e->getMessage());
+            }
+            
             // Send WhatsApp notification (non-blocking)
             try {
                 $whatsappService = app(\App\Services\WhatsAppService::class);
@@ -245,6 +253,15 @@ class BookingController extends Controller
                 ->update(['status' => 'available']);
 
             \DB::commit();
+            
+            // Send FCM notifications
+            try {
+                $fcmService = app(\App\Services\FcmService::class);
+                $fcmService->sendCancellationNotification($booking, false);
+                $fcmService->sendCancellationNotification($booking, true);
+            } catch (\Exception $e) {
+                \Log::warning('FCM notification failed: ' . $e->getMessage());
+            }
             
             // Send WhatsApp notifications (non-blocking)
             try {
