@@ -12,7 +12,7 @@ return [
     'allowed_origins' => [
         'http://localhost:3011',
         'http://localhost:3000',
-        'http://143.110.183.5',
+        'https://api.playltp.in',
         'https://admin.playltp.in',
         'https://playltp.in',
     ],
