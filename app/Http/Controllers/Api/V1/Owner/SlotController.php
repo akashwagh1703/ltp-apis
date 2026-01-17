@@ -109,6 +109,7 @@ class SlotController extends Controller
     {
         $request->validate([
             'turf_id' => 'required|exists:turfs,id',
+            'date' => 'nullable|date',
         ]);
 
         $turf = Turf::with('pricing')
@@ -116,9 +117,17 @@ class SlotController extends Controller
             ->where('owner_id', auth()->id())
             ->firstOrFail();
 
-        $slots = TurfSlot::where('turf_id', $turf->id)
-            ->where('status', 'available')
-            ->get();
+        $query = TurfSlot::where('turf_id', $turf->id)
+            ->where('status', 'available');
+            
+        if ($request->date) {
+            $query->where('date', $request->date);
+        } else {
+            // Update future slots only
+            $query->where('date', '>=', now()->toDateString());
+        }
+        
+        $slots = $query->get();
 
         $updated = 0;
         foreach ($slots as $slot) {
