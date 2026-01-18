@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 
+// Public Routes (No Authentication Required)
+Route::prefix('v1/public')->namespace('App\Http\Controllers\Api\V1\Public')->group(function () {
+    Route::post('owner-applications', 'OwnerApplicationController@store');
+});
+
 // Admin Routes
 Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group(function () {
     Route::post('login', 'AuthController@login');
@@ -61,6 +66,10 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('settings/{key}', 'SettingController@updateSingle');
         Route::get('settings/commission/rate', 'SettingController@getCommissionRate');
         Route::put('settings/commission/rate', 'SettingController@updateCommissionRate');
+        
+        Route::get('owner-applications', 'OwnerApplicationController@index');
+        Route::get('owner-applications/{id}', 'OwnerApplicationController@show');
+        Route::put('owner-applications/{id}/status', 'OwnerApplicationController@updateStatus');
         
         Route::get('subscriptions', 'SubscriptionController@index');
         Route::post('subscriptions', 'SubscriptionController@store');
