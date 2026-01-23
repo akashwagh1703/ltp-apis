@@ -2,78 +2,89 @@
 
 namespace App\Services;
 
+use App\Models\Setting;
 use App\Models\Payment;
+use Razorpay\Api\Api;
+use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
-    public function createOrder($bookingId, $amount)
-    {
-        $gateway = config('services.payment.gateway');
+    protected $razorpay;
+    protected $enabled;
 
-        if ($gateway === 'razorpay') {
-            return $this->createRazorpayOrder($bookingId, $amount);
-        } elseif ($gateway === 'cashfree') {
-            return $this->createCashfreeOrder($bookingId, $amount);
+    public function __construct()
+    {
+        $this->enabled = Setting::get('razorpay_enabled', 'false') === 'true';
+        
+        if ($this->enabled) {
+            $keyId = Setting::get('razorpay_key_id');
+            $keySecret = Setting::get('razorpay_key_secret');
+            
+            if ($keyId && $keySecret) {
+                $this->razorpay = new Api($keyId, $keySecret);
+            }
+        }
+    }
+
+    public function createOrder($bookingId, $amount, $currency = 'INR')
+    {
+        if (!$this->enabled || !$this->razorpay) {
+            throw new \Exception('Razorpay not configured or disabled');
         }
 
-        return null;
-    }
+        try {
+            $order = $this->razorpay->order->create([
+                'amount' => $amount * 100, // Convert to paise
+                'currency' => $currency,
+                'receipt' => 'booking_' . $bookingId,
+                'notes' => [
+                    'booking_id' => $bookingId
+                ]
+            ]);
 
-    private function createRazorpayOrder($bookingId, $amount)
-    {
-        // Razorpay order creation
-        return [
-            'order_id' => 'order_' . uniqid(),
-            'amount' => $amount * 100,
-            'currency' => 'INR',
-        ];
-    }
-
-    private function createCashfreeOrder($bookingId, $amount)
-    {
-        // Cashfree order creation
-        return [
-            'order_id' => 'order_' . uniqid(),
-            'amount' => $amount,
-            'currency' => 'INR',
-        ];
+            return [
+                'order_id' => $order['id'],
+                'amount' => $amount,
+                'currency' => $currency,
+                'key' => Setting::get('razorpay_key_id')
+            ];
+        } catch (\Exception $e) {
+            Log::error('Razorpay order creation failed: ' . $e->getMessage());
+            throw $e;
+        }
     }
 
     public function verifyPayment($orderId, $paymentId, $signature)
     {
-        $gateway = config('services.payment.gateway');
-
-        if ($gateway === 'razorpay') {
-            return $this->verifyRazorpay($orderId, $paymentId, $signature);
-        } elseif ($gateway === 'cashfree') {
-            return $this->verifyCashfree($orderId, $paymentId, $signature);
+        if (!$this->enabled || !$this->razorpay) {
+            return false;
         }
 
-        return false;
+        try {
+            $attributes = [
+                'razorpay_order_id' => $orderId,
+                'razorpay_payment_id' => $paymentId,
+                'razorpay_signature' => $signature
+            ];
+
+            $this->razorpay->utility->verifyPaymentSignature($attributes);
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Razorpay payment verification failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
-    private function verifyRazorpay($orderId, $paymentId, $signature)
-    {
-        // Razorpay signature verification
-        return true; // Placeholder
-    }
-
-    private function verifyCashfree($orderId, $paymentId, $signature)
-    {
-        // Cashfree signature verification
-        return true; // Placeholder
-    }
-
-    public function recordPayment($bookingId, $transactionId, $amount, $method, $gateway)
+    public function recordPayment($bookingId, $orderId, $paymentId, $amount, $status = 'success')
     {
         return Payment::create([
             'booking_id' => $bookingId,
-            'transaction_id' => $transactionId,
-            'payment_gateway' => $gateway,
-            'payment_method' => $method,
+            'razorpay_order_id' => $orderId,
+            'razorpay_payment_id' => $paymentId,
             'amount' => $amount,
-            'status' => 'completed',
-            'paid_at' => now(),
+            'payment_method' => 'razorpay',
+            'payment_status' => $status,
+            'paid_at' => $status === 'success' ? now() : null,
         ]);
     }
 }

@@ -30,6 +30,18 @@ class SettingSeeder extends Seeder
             ['key' => 'msg91_booking_template_id', 'value' => '', 'type' => 'string', 'description' => 'MSG91 Booking Template ID'],
             ['key' => 'msg91_cancel_template_id', 'value' => '', 'type' => 'string', 'description' => 'MSG91 Cancel Template ID'],
             ['key' => 'msg91_dlt_entity_id', 'value' => '', 'type' => 'string', 'description' => 'MSG91 DLT Entity ID'],
+            
+            // Razorpay Settings
+            ['key' => 'razorpay_enabled', 'value' => 'false', 'type' => 'string', 'description' => 'Enable/Disable Razorpay payments'],
+            ['key' => 'razorpay_mode', 'value' => 'test', 'type' => 'string', 'description' => 'Razorpay mode: test or live'],
+            ['key' => 'razorpay_key_id', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Key ID'],
+            ['key' => 'razorpay_key_secret', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Key Secret'],
+            ['key' => 'razorpay_webhook_secret', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Webhook Secret'],
+            
+            // Razorpay Payouts
+            ['key' => 'razorpay_payouts_enabled', 'value' => 'false', 'type' => 'string', 'description' => 'Enable/Disable Razorpay payouts'],
+            ['key' => 'razorpay_payout_key_id', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Payout Key ID'],
+            ['key' => 'razorpay_payout_key_secret', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Payout Key Secret'],
         ];
 
         foreach ($settings as $setting) {

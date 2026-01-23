@@ -39,8 +39,10 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         
         Route::get('payouts', 'PayoutController@index');
         Route::post('payouts/generate', 'PayoutController@generate');
+        Route::post('payouts/generate-bulk', 'PayoutController@generateBulk');
         Route::post('payouts/{id}/process', 'PayoutController@process');
         Route::post('payouts/{id}/release', 'PayoutController@release');
+        Route::post('payouts/{id}/update-status', 'PayoutController@updateStatus');
         
         Route::apiResource('banners', 'BannerController');
         Route::apiResource('faqs', 'FaqController');
@@ -67,6 +69,8 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('settings/commission/rate', 'SettingController@updateCommissionRate');
         Route::get('settings/sms', 'SettingController@getSmsSettings');
         Route::put('settings/sms', 'SettingController@updateSmsSettings');
+        Route::get('settings/payment', 'SettingController@getPaymentSettings');
+        Route::put('settings/payment', 'SettingController@updatePaymentSettings');
         Route::put('settings/{key}', 'SettingController@updateSingle');
         
         Route::get('owner-applications', 'OwnerApplicationController@index');

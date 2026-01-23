@@ -131,4 +131,72 @@ class SettingController extends Controller
             ], 500);
         }
     }
+
+    public function getPaymentSettings()
+    {
+        try {
+            return response()->json([
+                'razorpay_enabled' => Setting::get('razorpay_enabled', 'false') === 'true',
+                'razorpay_mode' => Setting::get('razorpay_mode', 'test'),
+                'razorpay_key_id' => Setting::get('razorpay_key_id', ''),
+                'razorpay_key_secret' => Setting::get('razorpay_key_secret', ''),
+                'razorpay_webhook_secret' => Setting::get('razorpay_webhook_secret', ''),
+                'razorpay_payouts_enabled' => Setting::get('razorpay_payouts_enabled', 'false') === 'true',
+                'razorpay_payout_key_id' => Setting::get('razorpay_payout_key_id', ''),
+                'razorpay_payout_key_secret' => Setting::get('razorpay_payout_key_secret', ''),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'razorpay_enabled' => false,
+                'razorpay_mode' => 'test',
+                'razorpay_key_id' => '',
+                'razorpay_key_secret' => '',
+                'razorpay_webhook_secret' => '',
+                'razorpay_payouts_enabled' => false,
+                'razorpay_payout_key_id' => '',
+                'razorpay_payout_key_secret' => '',
+            ]);
+        }
+    }
+
+    public function updatePaymentSettings(Request $request)
+    {
+        $request->validate([
+            'razorpay_enabled' => 'required|boolean',
+            'razorpay_mode' => 'required|in:test,live',
+            'razorpay_key_id' => 'nullable|string',
+            'razorpay_key_secret' => 'nullable|string',
+            'razorpay_webhook_secret' => 'nullable|string',
+            'razorpay_payouts_enabled' => 'boolean',
+            'razorpay_payout_key_id' => 'nullable|string',
+            'razorpay_payout_key_secret' => 'nullable|string',
+        ]);
+
+        try {
+            $settings = [
+                'razorpay_enabled' => $request->razorpay_enabled ? 'true' : 'false',
+                'razorpay_mode' => $request->razorpay_mode,
+                'razorpay_key_id' => $request->razorpay_key_id ?? '',
+                'razorpay_key_secret' => $request->razorpay_key_secret ?? '',
+                'razorpay_webhook_secret' => $request->razorpay_webhook_secret ?? '',
+                'razorpay_payouts_enabled' => $request->razorpay_payouts_enabled ? 'true' : 'false',
+                'razorpay_payout_key_id' => $request->razorpay_payout_key_id ?? '',
+                'razorpay_payout_key_secret' => $request->razorpay_payout_key_secret ?? '',
+            ];
+
+            foreach ($settings as $key => $value) {
+                Setting::set($key, $value, 'text');
+            }
+
+            return response()->json([
+                'message' => 'Payment settings updated successfully',
+                'settings' => $this->getPaymentSettings()->getData()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to update payment settings',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

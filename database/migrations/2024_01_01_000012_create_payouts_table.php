@@ -18,10 +18,12 @@ return new class extends Migration
             $table->decimal('commission_percentage', 5, 2);
             $table->decimal('commission_amount', 10, 2);
             $table->decimal('settlement_amount', 10, 2);
-            $table->enum('status', ['pending', 'processed', 'paid', 'failed'])->default('pending');
+            $table->enum('status', ['pending', 'processed', 'processing', 'paid', 'failed'])->default('pending');
             $table->date('paid_date')->nullable();
             $table->string('transaction_id')->nullable();
             $table->string('payment_method')->nullable();
+            $table->string('razorpay_payout_id')->nullable();
+            $table->text('failure_reason')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
             
