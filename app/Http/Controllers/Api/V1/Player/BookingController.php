@@ -185,19 +185,21 @@ class BookingController extends Controller
             
             // Send WhatsApp notification (non-blocking)
             try {
-                $whatsappService = app(\App\Services\WhatsAppService::class);
-                $whatsappService->sendBookingConfirmation(
-                    $booking->player_phone,
-                    [
-                        'booking_number' => $booking->booking_number,
-                        'turf_name' => $booking->turf->name,
-                        'booking_date' => $booking->booking_date->format('d M Y'),
-                        'start_time' => $booking->start_time,
-                        'end_time' => $booking->end_time,
-                        'final_amount' => $booking->final_amount,
-                    ],
-                    true
-                );
+                if (class_exists('\App\Services\WhatsAppService')) {
+                    $whatsappService = new \App\Services\WhatsAppService();
+                    $whatsappService->sendBookingConfirmation(
+                        $booking->player_phone,
+                        [
+                            'booking_number' => $booking->booking_number,
+                            'turf_name' => $booking->turf->name,
+                            'booking_date' => $booking->booking_date->format('d M Y'),
+                            'start_time' => $booking->start_time,
+                            'end_time' => $booking->end_time,
+                            'final_amount' => $booking->final_amount,
+                        ],
+                        true
+                    );
+                }
             } catch (\Exception $e) {
                 \Log::warning('WhatsApp booking notification failed: ' . $e->getMessage());
             }
@@ -263,32 +265,34 @@ class BookingController extends Controller
             
             // Send WhatsApp notifications (non-blocking)
             try {
-                $whatsappService = app(\App\Services\WhatsAppService::class);
-                
-                // Notify player
-                $whatsappService->sendCancellationToPlayer(
-                    $booking->player_phone,
-                    [
-                        'booking_number' => $booking->booking_number,
-                        'turf_name' => $booking->turf->name,
-                        'booking_date' => $booking->booking_date->format('d M Y'),
-                        'start_time' => $booking->start_time,
-                        'cancellation_reason' => $booking->cancellation_reason,
-                    ],
-                    'player'
-                );
-                
-                // Notify owner
-                if ($booking->owner && $booking->owner->phone) {
-                    $whatsappService->sendCancellationToOwner(
-                        $booking->owner->phone,
+                if (class_exists('\App\Services\WhatsAppService')) {
+                    $whatsappService = new \App\Services\WhatsAppService();
+                    
+                    // Notify player
+                    $whatsappService->sendCancellationToPlayer(
+                        $booking->player_phone,
                         [
                             'booking_number' => $booking->booking_number,
-                            'player_name' => $booking->player_name,
+                            'turf_name' => $booking->turf->name,
                             'booking_date' => $booking->booking_date->format('d M Y'),
                             'start_time' => $booking->start_time,
-                        ]
+                            'cancellation_reason' => $booking->cancellation_reason,
+                        ],
+                        'player'
                     );
+                    
+                    // Notify owner
+                    if ($booking->owner && $booking->owner->phone) {
+                        $whatsappService->sendCancellationToOwner(
+                            $booking->owner->phone,
+                            [
+                                'booking_number' => $booking->booking_number,
+                                'player_name' => $booking->player_name,
+                                'booking_date' => $booking->booking_date->format('d M Y'),
+                                'start_time' => $booking->start_time,
+                            ]
+                        );
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::warning('WhatsApp cancellation notification failed: ' . $e->getMessage());

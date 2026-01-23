@@ -40,8 +40,10 @@ class AuthController extends Controller
         
         // Try WhatsApp first, but don't block if it fails
         try {
-            $whatsappService = app(\App\Services\WhatsAppService::class);
-            $whatsappService->sendOtp($request->phone, $otp, 'player');
+            if (class_exists('\App\Services\WhatsAppService')) {
+                $whatsappService = new \App\Services\WhatsAppService();
+                $whatsappService->sendOtp($request->phone, $otp, 'player');
+            }
         } catch (\Exception $e) {
             \Log::warning('WhatsApp OTP failed, continuing: ' . $e->getMessage());
         }

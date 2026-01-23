@@ -15,7 +15,7 @@ class TurfUpdateRequest extends Model
         'request_type',
         'changes',
         'status',
-        'admin_comment',
+        'admin_notes',
         'reviewed_by',
         'reviewed_at',
     ];
