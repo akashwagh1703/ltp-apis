@@ -13581,3 +13581,11 @@ DETAIL:  Failing row contains (11, 17, null, t, 0, 2025-12-10 08:38:59, 2025-12-
 #37 D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/artisan(12): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
 #38 {main}
 "} 
+[2026-01-23 20:30:10] local.ERROR: Command "tinker" is not defined. {"exception":"[object] (Symfony\\Component\\Console\\Exception\\CommandNotFoundException(code: 0): Command \"tinker\" is not defined. at D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/vendor/symfony/console/Application.php:759)
+[stacktrace]
+#0 D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/vendor/symfony/console/Application.php(298): Symfony/Component/Console/Application->find('tinker')
+#1 D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/vendor/symfony/console/Application.php(195): Symfony/Component/Console/Application->doRun(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#2 D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony/Component/Console/Application->run(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#3 D:/Akash Wagh/LTP-Code-git-clone/ltp-apis/artisan(12): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#4 {main}
+"} 

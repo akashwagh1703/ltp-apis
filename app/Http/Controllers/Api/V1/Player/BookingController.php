@@ -143,16 +143,37 @@ class BookingController extends Controller
                 $paymentStatus = $pendingAmount > 0 ? 'partial' : 'success';
             }
 
-            // Check payment gateway configuration
+            // Check payment gateway configuration properly
             $razorpayEnabled = \App\Models\Setting::get('razorpay_enabled', 'false') === 'true';
-            $razorpayKeyId = \App\Models\Setting::get('razorpay_key_id');
-            $razorpayKeySecret = \App\Models\Setting::get('razorpay_key_secret');
+            $razorpayMode = \App\Models\Setting::get('razorpay_mode', 'test');
+            $razorpayKeyId = \App\Models\Setting::get('razorpay_key_id', '');
+            $razorpayKeySecret = \App\Models\Setting::get('razorpay_key_secret', '');
             
-            $paymentGatewayConfigured = $razorpayEnabled && !empty($razorpayKeyId) && !empty($razorpayKeySecret);
+            // Payment gateway is configured if:
+            // 1. Razorpay is enabled in admin settings
+            // 2. Required keys are present
+            $paymentGatewayConfigured = $razorpayEnabled && 
+                                     !empty(trim($razorpayKeyId)) && 
+                                     !empty(trim($razorpayKeySecret));
             
-            // Set payment status based on gateway configuration
-            $paymentStatus = $paymentGatewayConfigured ? 'pending' : 'success';
-            $bookingStatus = $paymentGatewayConfigured ? 'pending_payment' : 'confirmed';
+            \Log::info('Payment Gateway Check', [
+                'razorpay_enabled' => $razorpayEnabled,
+                'razorpay_mode' => $razorpayMode,
+                'has_key_id' => !empty(trim($razorpayKeyId)),
+                'has_key_secret' => !empty(trim($razorpayKeySecret)),
+                'payment_configured' => $paymentGatewayConfigured
+            ]);
+            
+            // Set payment and booking status based on configuration
+            if ($paymentGatewayConfigured) {
+                $paymentStatus = 'pending';
+                $bookingStatus = 'pending_payment';
+                $paymentMode = 'online';
+            } else {
+                $paymentStatus = 'success';
+                $bookingStatus = 'confirmed';
+                $paymentMode = 'cash'; // Use cash when no payment gateway
+            }
 
             $booking = Booking::create([
                 'booking_number' => 'BK' . time() . rand(1000, 9999),
@@ -175,7 +196,7 @@ class BookingController extends Controller
                 'commission_rate' => $commissionRate * 100, // Store as 5.00
                 'booking_type' => 'online',
                 'booking_status' => $bookingStatus,
-                'payment_mode' => $paymentGatewayConfigured ? 'online' : 'cash',
+                'payment_mode' => $paymentMode,
                 'payment_status' => $paymentStatus,
                 'player_name' => $player->name ?? 'Guest',
                 'player_phone' => $player->phone,

@@ -17,11 +17,13 @@ class PaymentService
         $this->enabled = Setting::get('razorpay_enabled', 'false') === 'true';
         
         if ($this->enabled) {
-            $keyId = Setting::get('razorpay_key_id');
-            $keySecret = Setting::get('razorpay_key_secret');
+            $keyId = Setting::get('razorpay_key_id', '');
+            $keySecret = Setting::get('razorpay_key_secret', '');
             
-            if ($keyId && $keySecret) {
+            if (!empty(trim($keyId)) && !empty(trim($keySecret))) {
                 $this->razorpay = new Api($keyId, $keySecret);
+            } else {
+                $this->enabled = false; // Disable if keys are empty
             }
         }
     }
