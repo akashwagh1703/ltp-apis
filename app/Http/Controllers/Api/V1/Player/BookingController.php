@@ -175,7 +175,7 @@ class BookingController extends Controller
                 'commission_rate' => $commissionRate * 100, // Store as 5.00
                 'booking_type' => 'online',
                 'booking_status' => $bookingStatus,
-                'payment_mode' => $paymentGatewayConfigured ? 'online' : 'free',
+                'payment_mode' => $paymentGatewayConfigured ? 'online' : 'cash',
                 'payment_status' => $paymentStatus,
                 'player_name' => $player->name ?? 'Guest',
                 'player_phone' => $player->phone,
