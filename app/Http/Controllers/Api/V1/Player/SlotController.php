@@ -30,11 +30,17 @@ class SlotController extends Controller
             ->get();
 
         $now = \Carbon\Carbon::now();
-        $slots = $slots->filter(function($slot) use ($now, $request) {
-            if ($request->date === $now->toDateString()) {
-                $slotDateTime = \Carbon\Carbon::parse($request->date . ' ' . $slot->start_time);
-                return $slotDateTime->gt($now);
+        $requestDate = $request->date;
+        
+        $slots = $slots->filter(function($slot) use ($now, $requestDate) {
+            // If the requested date is today, filter by current time
+            if ($requestDate === $now->toDateString()) {
+                $slotDateTime = \Carbon\Carbon::parse($requestDate . ' ' . $slot->start_time);
+                // Show slots that start at least 30 minutes from now
+                $bufferTime = $now->copy()->addMinutes(30);
+                return $slotDateTime->gt($bufferTime);
             }
+            // For future dates, show all slots
             return true;
         });
 
@@ -49,8 +55,9 @@ class SlotController extends Controller
         \Log::info('Slots returned', [
             'turf_id' => $request->turf_id,
             'date' => $request->date,
+            'current_time' => $now->toTimeString(),
             'count' => $slots->count(),
-            'sample_prices' => $slots->take(3)->pluck('price')->toArray()
+            'sample_times' => $slots->take(3)->pluck('start_time_display')->toArray()
         ]);
 
         return response()->json($slots);
