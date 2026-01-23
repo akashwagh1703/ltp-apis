@@ -32,6 +32,18 @@ class PayoutController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->payment_method) {
+            $query->where('payment_method', $request->payment_method);
+        }
+
+        if ($request->period_start) {
+            $query->where('period_start', '>=', $request->period_start);
+        }
+
+        if ($request->period_end) {
+            $query->where('period_end', '<=', $request->period_end);
+        }
+
         $payouts = $query->latest()->paginate(15);
 
         return PayoutResource::collection($payouts);

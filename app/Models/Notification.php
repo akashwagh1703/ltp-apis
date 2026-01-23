@@ -2,35 +2,46 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Notification extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'user_id',
-        'user_type',
         'title',
-        'body',
-        'data',
-        'type',
-        'read_at',
+        'message',
+        'target',
+        'user_ids',
+        'user_type',
+        'scheduled_at',
+        'sent_by',
+        'status',
+        'sent_at',
+        'delivery_stats'
     ];
 
     protected $casts = [
-        'data' => 'array',
-        'read_at' => 'datetime',
+        'user_ids' => 'array',
+        'scheduled_at' => 'datetime',
+        'sent_at' => 'datetime',
+        'delivery_stats' => 'array'
     ];
 
-    public function user()
+    public function sentBy()
     {
-        if ($this->user_type === 'owner') {
-            return $this->belongsTo(Owner::class, 'user_id');
-        }
-        return $this->belongsTo(Player::class, 'user_id');
+        return $this->belongsTo(User::class, 'sent_by');
     }
 
-    public function markAsRead()
+    public function scopeScheduled($query)
     {
-        $this->update(['read_at' => now()]);
+        return $query->where('status', 'scheduled')
+                    ->where('scheduled_at', '<=', now());
+    }
+
+    public function scopeSent($query)
+    {
+        return $query->where('status', 'sent');
     }
 }

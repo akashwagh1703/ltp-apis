@@ -45,4 +45,17 @@ class TurfController extends Controller
 
         return response()->json(['message' => 'Update request submitted']);
     }
+
+    public function getUpdateRequests(Request $request)
+    {
+        $requests = TurfUpdateRequest::with('turf')
+            ->where('owner_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $requests
+        ]);
+    }
 }

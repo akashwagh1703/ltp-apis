@@ -17,6 +17,9 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         
         Route::get('dashboard/stats', 'DashboardController@stats');
         Route::get('dashboard/recent-bookings', 'DashboardController@recentBookings');
+        Route::get('dashboard/pending-actions', 'DashboardController@pendingActions');
+        Route::get('dashboard/top-turfs', 'DashboardController@topTurfs');
+        Route::get('dashboard/revenue-chart', 'DashboardController@revenueChart');
         
         Route::apiResource('owners', 'OwnerController');
         Route::put('owners/{id}/status', 'OwnerController@updateStatus');
@@ -88,6 +91,9 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::get('notifications/list', 'NotificationController@index');
         Route::post('notifications/send-to-user', 'NotificationController@sendToUser');
         Route::post('notifications/send-to-all', 'NotificationController@sendToAll');
+        Route::post('notifications/send', 'NotificationController@send');
+        Route::get('notifications/history', 'NotificationController@history');
+        Route::get('notifications/stats', 'NotificationController@stats');
     });
 });
 
@@ -151,6 +157,7 @@ Route::prefix('v1/owner')->group(function () {
         Route::get('turfs', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'index']);
         Route::get('turfs/{id}', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'show']);
         Route::post('turfs/{id}/request-update', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'requestUpdate']);
+        Route::get('turf-update-requests', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'getUpdateRequests']);
         
         Route::post('slots/generate', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'generate']);
         Route::get('slots', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'list']);
