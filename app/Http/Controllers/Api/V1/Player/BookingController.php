@@ -143,6 +143,17 @@ class BookingController extends Controller
                 $paymentStatus = $pendingAmount > 0 ? 'partial' : 'success';
             }
 
+            // Check payment gateway configuration
+            $razorpayEnabled = \App\Models\Setting::get('razorpay_enabled', 'false') === 'true';
+            $razorpayKeyId = \App\Models\Setting::get('razorpay_key_id');
+            $razorpayKeySecret = \App\Models\Setting::get('razorpay_key_secret');
+            
+            $paymentGatewayConfigured = $razorpayEnabled && !empty($razorpayKeyId) && !empty($razorpayKeySecret);
+            
+            // Set payment status based on gateway configuration
+            $paymentStatus = $paymentGatewayConfigured ? 'pending' : 'success';
+            $bookingStatus = $paymentGatewayConfigured ? 'pending_payment' : 'confirmed';
+
             $booking = Booking::create([
                 'booking_number' => 'BK' . time() . rand(1000, 9999),
                 'player_id' => $player->id,
@@ -163,8 +174,8 @@ class BookingController extends Controller
                 'owner_payout' => $ownerPayout,
                 'commission_rate' => $commissionRate * 100, // Store as 5.00
                 'booking_type' => 'online',
-                'booking_status' => 'confirmed',
-                'payment_mode' => 'online',
+                'booking_status' => $bookingStatus,
+                'payment_mode' => $paymentGatewayConfigured ? 'online' : 'free',
                 'payment_status' => $paymentStatus,
                 'player_name' => $player->name ?? 'Guest',
                 'player_phone' => $player->phone,
@@ -204,7 +215,15 @@ class BookingController extends Controller
                 \Log::warning('WhatsApp booking notification failed: ' . $e->getMessage());
             }
             
-            return response()->json(new BookingResource($booking->load('turf', 'payment')), 201);
+            $response = new BookingResource($booking->load('turf', 'payment'));
+            $response->additional([
+                'payment_required' => $paymentGatewayConfigured,
+                'message' => $paymentGatewayConfigured 
+                    ? 'Booking created. Payment required to confirm.' 
+                    : 'Booking confirmed successfully.'
+            ]);
+            
+            return response()->json($response, 201);
         } catch (\Exception $e) {
             \DB::rollBack();
             return response()->json(['message' => 'Booking failed: ' . $e->getMessage()], 500);
