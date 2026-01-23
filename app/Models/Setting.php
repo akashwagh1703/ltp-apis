@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
-    protected $fillable = ['key', 'value', 'type', 'description'];
+    protected $fillable = ['key', 'value', 'type'];
 
     public static function get($key, $default = null)
     {
@@ -17,11 +17,11 @@ class Setting extends Model
         });
     }
 
-    public static function set($key, $value, $type = 'string', $description = null)
+    public static function set($key, $value, $type = 'string')
     {
         $setting = self::updateOrCreate(
             ['key' => $key],
-            ['value' => $value, 'type' => $type, 'description' => $description]
+            ['value' => $value, 'type' => $type]
         );
         
         Cache::forget("setting_{$key}");

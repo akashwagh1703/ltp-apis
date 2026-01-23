@@ -51,7 +51,7 @@ class SettingController extends Controller
             'rate' => 'required|numeric|min:0|max:100'
         ]);
 
-        Setting::set('platform_commission_rate', $request->rate, 'decimal', 'Platform commission percentage');
+        Setting::set('platform_commission_rate', $request->rate, 'decimal');
 
         return response()->json([
             'message' => 'Commission rate updated successfully',
