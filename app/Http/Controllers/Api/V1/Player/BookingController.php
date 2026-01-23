@@ -237,14 +237,14 @@ class BookingController extends Controller
             }
             
             $response = new BookingResource($booking->load('turf', 'payment'));
-            $response->additional([
+            
+            return response()->json([
+                'data' => $response,
                 'payment_required' => $paymentGatewayConfigured,
                 'message' => $paymentGatewayConfigured 
                     ? 'Booking created. Payment required to confirm.' 
                     : 'Booking confirmed successfully.'
-            ]);
-            
-            return response()->json($response, 201);
+            ], 201);
         } catch (\Exception $e) {
             \DB::rollBack();
             return response()->json(['message' => 'Booking failed: ' . $e->getMessage()], 500);
