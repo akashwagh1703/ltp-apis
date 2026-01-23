@@ -117,7 +117,7 @@ class SettingController extends Controller
             ];
 
             foreach ($settings as $key => $value) {
-                Setting::set($key, $value, 'string');
+                Setting::set($key, $value, 'text');
             }
 
             return response()->json([
