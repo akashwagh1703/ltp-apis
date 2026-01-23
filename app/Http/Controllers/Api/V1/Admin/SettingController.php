@@ -61,17 +61,32 @@ class SettingController extends Controller
 
     public function getSmsSettings()
     {
-        return response()->json([
-            'sms_enabled' => Setting::get('sms_enabled', 'false') === 'true',
-            'default_otp_enabled' => Setting::get('default_otp_enabled', 'true') === 'true',
-            'default_otp' => Setting::get('default_otp', '999999'),
-            'msg91_auth_key' => Setting::get('msg91_auth_key', ''),
-            'msg91_sender_id' => Setting::get('msg91_sender_id', 'LTPLAY'),
-            'msg91_otp_template_id' => Setting::get('msg91_otp_template_id', ''),
-            'msg91_booking_template_id' => Setting::get('msg91_booking_template_id', ''),
-            'msg91_cancel_template_id' => Setting::get('msg91_cancel_template_id', ''),
-            'msg91_dlt_entity_id' => Setting::get('msg91_dlt_entity_id', ''),
-        ]);
+        try {
+            return response()->json([
+                'sms_enabled' => Setting::get('sms_enabled', 'false') === 'true',
+                'default_otp_enabled' => Setting::get('default_otp_enabled', 'true') === 'true',
+                'default_otp' => Setting::get('default_otp', '999999'),
+                'msg91_auth_key' => Setting::get('msg91_auth_key', ''),
+                'msg91_sender_id' => Setting::get('msg91_sender_id', 'LTPLAY'),
+                'msg91_otp_template_id' => Setting::get('msg91_otp_template_id', ''),
+                'msg91_booking_template_id' => Setting::get('msg91_booking_template_id', ''),
+                'msg91_cancel_template_id' => Setting::get('msg91_cancel_template_id', ''),
+                'msg91_dlt_entity_id' => Setting::get('msg91_dlt_entity_id', ''),
+            ]);
+        } catch (\Exception $e) {
+            // Return default values if settings don't exist yet
+            return response()->json([
+                'sms_enabled' => false,
+                'default_otp_enabled' => true,
+                'default_otp' => '999999',
+                'msg91_auth_key' => '',
+                'msg91_sender_id' => 'LTPLAY',
+                'msg91_otp_template_id' => '',
+                'msg91_booking_template_id' => '',
+                'msg91_cancel_template_id' => '',
+                'msg91_dlt_entity_id' => '',
+            ]);
+        }
     }
 
     public function updateSmsSettings(Request $request)
@@ -88,25 +103,32 @@ class SettingController extends Controller
             'msg91_dlt_entity_id' => 'nullable|string',
         ]);
 
-        $settings = [
-            'sms_enabled' => $request->sms_enabled ? 'true' : 'false',
-            'default_otp_enabled' => $request->default_otp_enabled ? 'true' : 'false',
-            'default_otp' => $request->default_otp,
-            'msg91_auth_key' => $request->msg91_auth_key ?? '',
-            'msg91_sender_id' => $request->msg91_sender_id ?? 'LTPLAY',
-            'msg91_otp_template_id' => $request->msg91_otp_template_id ?? '',
-            'msg91_booking_template_id' => $request->msg91_booking_template_id ?? '',
-            'msg91_cancel_template_id' => $request->msg91_cancel_template_id ?? '',
-            'msg91_dlt_entity_id' => $request->msg91_dlt_entity_id ?? '',
-        ];
+        try {
+            $settings = [
+                'sms_enabled' => $request->sms_enabled ? 'true' : 'false',
+                'default_otp_enabled' => $request->default_otp_enabled ? 'true' : 'false',
+                'default_otp' => $request->default_otp,
+                'msg91_auth_key' => $request->msg91_auth_key ?? '',
+                'msg91_sender_id' => $request->msg91_sender_id ?? 'LTPLAY',
+                'msg91_otp_template_id' => $request->msg91_otp_template_id ?? '',
+                'msg91_booking_template_id' => $request->msg91_booking_template_id ?? '',
+                'msg91_cancel_template_id' => $request->msg91_cancel_template_id ?? '',
+                'msg91_dlt_entity_id' => $request->msg91_dlt_entity_id ?? '',
+            ];
 
-        foreach ($settings as $key => $value) {
-            Setting::set($key, $value, 'string');
+            foreach ($settings as $key => $value) {
+                Setting::set($key, $value, 'string');
+            }
+
+            return response()->json([
+                'message' => 'SMS settings updated successfully',
+                'settings' => $this->getSmsSettings()->getData()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to update SMS settings',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'SMS settings updated successfully',
-            'settings' => $this->getSmsSettings()->getData()
-        ]);
     }
 }
