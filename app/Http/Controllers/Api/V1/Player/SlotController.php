@@ -24,12 +24,30 @@ class SlotController extends Controller
             'date' => 'required|date',
         ]);
 
+        $now = \Carbon\Carbon::now();
+        \Log::info('Slots API called', [
+            'turf_id' => $request->turf_id,
+            'date' => $request->date,
+            'current_time' => $now->format('Y-m-d H:i:s'),
+            'is_today' => $request->date === $now->toDateString()
+        ]);
+
         $slots = TurfSlot::where('turf_id', $request->turf_id)
             ->where('date', $request->date)
             ->orderBy('start_time')
             ->get();
 
-        $now = \Carbon\Carbon::now();
+        \Log::info('Raw slots from DB', [
+            'count' => $slots->count(),
+            'sample_slots' => $slots->take(3)->map(function($slot) {
+                return [
+                    'start_time' => $slot->start_time,
+                    'status' => $slot->status,
+                    'price' => $slot->price
+                ];
+            })->toArray()
+        ]);
+
         $requestDate = $request->date;
         
         $slots = $slots->filter(function($slot) use ($now, $requestDate) {
@@ -38,7 +56,16 @@ class SlotController extends Controller
                 $slotDateTime = \Carbon\Carbon::parse($requestDate . ' ' . $slot->start_time);
                 // Show slots that start at least 30 minutes from now
                 $bufferTime = $now->copy()->addMinutes(30);
-                return $slotDateTime->gt($bufferTime);
+                $isAvailable = $slotDateTime->gt($bufferTime);
+                
+                \Log::info('Slot time check', [
+                    'slot_time' => $slot->start_time,
+                    'slot_datetime' => $slotDateTime->format('Y-m-d H:i:s'),
+                    'buffer_time' => $bufferTime->format('Y-m-d H:i:s'),
+                    'is_available' => $isAvailable
+                ]);
+                
+                return $isAvailable;
             }
             // For future dates, show all slots
             return true;
@@ -52,12 +79,9 @@ class SlotController extends Controller
             return $slot;
         })->values();
 
-        \Log::info('Slots returned', [
-            'turf_id' => $request->turf_id,
-            'date' => $request->date,
-            'current_time' => $now->toTimeString(),
+        \Log::info('Final slots returned', [
             'count' => $slots->count(),
-            'sample_times' => $slots->take(3)->pluck('start_time_display')->toArray()
+            'sample_times' => $slots->take(5)->pluck('start_time_display')->toArray()
         ]);
 
         return response()->json($slots);
