@@ -23,24 +23,31 @@ class NotificationController extends Controller
         try {
             $userIds = $this->getTargetUserIds($request->target);
             
-            $notification = Notification::create([
-                'title' => $request->title,
-                'message' => $request->message,
-                'target' => $request->target,
-                'user_ids' => json_encode($userIds),
-                'scheduled_at' => $request->scheduled_at,
-                'sent_by' => auth()->id(),
-                'status' => $request->scheduled_at ? 'scheduled' : 'sent',
-                'sent_at' => $request->scheduled_at ? null : now()
-            ]);
-
-            if (!$request->scheduled_at) {
-                $this->sendNotificationToUsers($notification, $userIds);
+            // Create individual notifications for each user
+            $notifications = [];
+            foreach ($userIds as $userData) {
+                $userId = is_array($userData) ? $userData['id'] : $userData;
+                $userType = is_array($userData) ? $userData['type'] : ($request->target === 'owners' ? 'owner' : 'player');
+                
+                $notification = Notification::create([
+                    'user_id' => $userId,
+                    'user_type' => $userType,
+                    'title' => $request->title,
+                    'body' => $request->message,
+                    'type' => 'general',
+                    'data' => json_encode([
+                        'target' => $request->target,
+                        'sent_by' => auth()->id(),
+                        'scheduled_at' => $request->scheduled_at
+                    ])
+                ]);
+                
+                $notifications[] = $notification;
             }
 
             return response()->json([
-                'message' => $request->scheduled_at ? 'Notification scheduled successfully' : 'Notification sent successfully',
-                'data' => $notification
+                'message' => 'Notification sent successfully',
+                'count' => count($notifications)
             ]);
         } catch (\Exception $e) {
             Log::error('Notification send failed: ' . $e->getMessage());
@@ -121,12 +128,12 @@ class NotificationController extends Controller
             case 'owners':
                 return Owner::where('status', 'active')->pluck('id')->toArray();
             case 'players':
-                return Player::where('status', 'active')->pluck('id')->toArray();
+                return Player::pluck('id')->toArray();
             case 'all':
                 $owners = Owner::where('status', 'active')->pluck('id')->map(function($id) {
                     return ['id' => $id, 'type' => 'owner'];
                 });
-                $players = Player::where('status', 'active')->pluck('id')->map(function($id) {
+                $players = Player::pluck('id')->map(function($id) {
                     return ['id' => $id, 'type' => 'player'];
                 });
                 return $owners->concat($players)->toArray();
