@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Setting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -12,33 +13,27 @@ class SmsService
 
     public function __construct()
     {
-        $this->enabled = config('services.notification.sms_enabled', false);
-        $this->gateway = config('services.sms.gateway', 'msg91');
+        $this->enabled = Setting::get('sms_enabled', 'false') === 'true';
+        $this->gateway = 'msg91'; // Always use MSG91
     }
 
     public function send($phone, $message)
     {
         if (!$this->enabled) {
-            Log::info('SMS disabled via config, skipping message');
+            Log::info('SMS disabled via admin settings, skipping message');
             return false;
         }
 
-        if ($this->gateway === 'msg91') {
-            return $this->sendViaMSG91($phone, $message);
-        } elseif ($this->gateway === 'twilio') {
-            return $this->sendViaTwilio($phone, $message);
-        }
-
-        return false;
+        return $this->sendViaMSG91($phone, $message);
     }
 
     private function sendViaMSG91($phone, $message)
     {
-        $authKey = config('services.sms.msg91.auth_key');
-        $senderId = config('services.sms.msg91.sender_id');
+        $authKey = Setting::get('msg91_auth_key');
+        $senderId = Setting::get('msg91_sender_id', 'LTPLAY');
 
-        if (empty($authKey) || empty($senderId)) {
-            Log::warning('MSG91 not configured, skipping SMS');
+        if (empty($authKey)) {
+            Log::warning('MSG91 auth key not configured in admin settings');
             return false;
         }
 
@@ -50,7 +45,7 @@ class SmsService
                 'mobiles' => $phone,
                 'message' => $message,
                 'sender' => $senderId,
-                'route' => '4', // Transactional route
+                'route' => '4',
                 'country' => '91',
             ]);
 
@@ -71,43 +66,29 @@ class SmsService
         }
     }
 
-    private function sendViaTwilio($phone, $message)
-    {
-        // Twilio API implementation placeholder
-        Log::info('Twilio not implemented yet');
-        return false;
-    }
-
     public function sendOtp($phone, $otp)
     {
         if (!$this->enabled) {
-            Log::info('SMS disabled, OTP logged only: ' . $otp);
+            Log::info('SMS disabled via admin settings, OTP logged only: ' . $otp);
             return true;
         }
 
-        if ($this->gateway === 'msg91') {
-            return $this->sendOtpViaMSG91($phone, $otp);
-        }
-
-        // Fallback to simple SMS
-        $message = "Your LTP OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
-        return $this->send($phone, $message);
+        return $this->sendOtpViaMSG91($phone, $otp);
     }
 
     private function sendOtpViaMSG91($phone, $otp)
     {
-        $authKey = config('services.sms.msg91.auth_key');
-        $templateId = config('services.sms.msg91.otp_template_id');
+        $authKey = Setting::get('msg91_auth_key');
+        $templateId = Setting::get('msg91_otp_template_id');
 
         if (empty($authKey)) {
-            Log::warning('MSG91 not configured, OTP logged only: ' . $otp);
+            Log::warning('MSG91 not configured in admin settings, OTP logged only: ' . $otp);
             return false;
         }
 
         try {
             $phone = $this->formatPhoneNumber($phone);
 
-            // Use MSG91 OTP API if template ID is configured
             if (!empty($templateId)) {
                 $response = Http::timeout(10)
                     ->withHeaders(['authkey' => $authKey])
@@ -117,7 +98,6 @@ class SmsService
                         'otp' => $otp,
                     ]);
             } else {
-                // Fallback to simple SMS
                 $message = "Your LTP OTP is {$otp}. Valid for 10 minutes. Do not share this code.";
                 return $this->sendViaMSG91($phone, $message);
             }
@@ -142,7 +122,7 @@ class SmsService
     public function sendBookingConfirmation($phone, $bookingNumber, $turfName, $date, $time)
     {
         if (!$this->enabled) {
-            Log::info('SMS disabled, skipping booking confirmation');
+            Log::info('SMS disabled via admin settings, skipping booking confirmation');
             return false;
         }
 
@@ -152,10 +132,8 @@ class SmsService
 
     protected function formatPhoneNumber($phone)
     {
-        // Remove any non-numeric characters
         $phone = preg_replace('/[^0-9]/', '', $phone);
         
-        // Remove country code if present
         if (strlen($phone) > 10 && substr($phone, 0, 2) === '91') {
             $phone = substr($phone, 2);
         }

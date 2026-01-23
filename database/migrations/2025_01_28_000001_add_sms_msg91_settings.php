@@ -1,23 +1,13 @@
 <?php
 
-namespace Database\Seeders;
-
+use Illuminate\Database\Migrations\Migration;
 use App\Models\Setting;
-use Illuminate\Database\Seeder;
 
-class SettingSeeder extends Seeder
+return new class extends Migration
 {
-    public function run()
+    public function up()
     {
         $settings = [
-            ['key' => 'commission_percentage', 'value' => '10', 'type' => 'number', 'description' => 'Platform commission percentage'],
-            ['key' => 'slot_lock_minutes', 'value' => '10', 'type' => 'number', 'description' => 'Minutes to lock slot during booking'],
-            ['key' => 'otp_expiry_minutes', 'value' => '10', 'type' => 'number', 'description' => 'OTP expiry time in minutes'],
-            ['key' => 'cancellation_hours', 'value' => '24', 'type' => 'number', 'description' => 'Hours before booking to allow cancellation'],
-            ['key' => 'app_name', 'value' => 'Let\'s Turf Play', 'type' => 'string', 'description' => 'Application name'],
-            ['key' => 'support_email', 'value' => 'support@letsturf.com', 'type' => 'string', 'description' => 'Support email address'],
-            ['key' => 'support_phone', 'value' => '1800-123-4567', 'type' => 'string', 'description' => 'Support phone number'],
-            
             // SMS & OTP Settings
             ['key' => 'sms_enabled', 'value' => 'false', 'type' => 'boolean', 'description' => 'Enable/Disable SMS notifications'],
             ['key' => 'default_otp_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable default OTP (999999) for testing'],
@@ -39,4 +29,15 @@ class SettingSeeder extends Seeder
             );
         }
     }
-}
+
+    public function down()
+    {
+        $keys = [
+            'sms_enabled', 'default_otp_enabled', 'default_otp',
+            'msg91_auth_key', 'msg91_sender_id', 'msg91_otp_template_id',
+            'msg91_booking_template_id', 'msg91_cancel_template_id', 'msg91_dlt_entity_id'
+        ];
+
+        Setting::whereIn('key', $keys)->delete();
+    }
+};

@@ -58,4 +58,55 @@ class SettingController extends Controller
             'commission_rate' => $request->rate
         ]);
     }
+
+    public function getSmsSettings()
+    {
+        return response()->json([
+            'sms_enabled' => Setting::get('sms_enabled', 'false') === 'true',
+            'default_otp_enabled' => Setting::get('default_otp_enabled', 'true') === 'true',
+            'default_otp' => Setting::get('default_otp', '999999'),
+            'msg91_auth_key' => Setting::get('msg91_auth_key', ''),
+            'msg91_sender_id' => Setting::get('msg91_sender_id', 'LTPLAY'),
+            'msg91_otp_template_id' => Setting::get('msg91_otp_template_id', ''),
+            'msg91_booking_template_id' => Setting::get('msg91_booking_template_id', ''),
+            'msg91_cancel_template_id' => Setting::get('msg91_cancel_template_id', ''),
+            'msg91_dlt_entity_id' => Setting::get('msg91_dlt_entity_id', ''),
+        ]);
+    }
+
+    public function updateSmsSettings(Request $request)
+    {
+        $request->validate([
+            'sms_enabled' => 'required|boolean',
+            'default_otp_enabled' => 'required|boolean',
+            'default_otp' => 'required|string|size:6',
+            'msg91_auth_key' => 'nullable|string',
+            'msg91_sender_id' => 'nullable|string|max:6',
+            'msg91_otp_template_id' => 'nullable|string',
+            'msg91_booking_template_id' => 'nullable|string',
+            'msg91_cancel_template_id' => 'nullable|string',
+            'msg91_dlt_entity_id' => 'nullable|string',
+        ]);
+
+        $settings = [
+            'sms_enabled' => $request->sms_enabled ? 'true' : 'false',
+            'default_otp_enabled' => $request->default_otp_enabled ? 'true' : 'false',
+            'default_otp' => $request->default_otp,
+            'msg91_auth_key' => $request->msg91_auth_key ?? '',
+            'msg91_sender_id' => $request->msg91_sender_id ?? 'LTPLAY',
+            'msg91_otp_template_id' => $request->msg91_otp_template_id ?? '',
+            'msg91_booking_template_id' => $request->msg91_booking_template_id ?? '',
+            'msg91_cancel_template_id' => $request->msg91_cancel_template_id ?? '',
+            'msg91_dlt_entity_id' => $request->msg91_dlt_entity_id ?? '',
+        ];
+
+        foreach ($settings as $key => $value) {
+            Setting::set($key, $value, 'string');
+        }
+
+        return response()->json([
+            'message' => 'SMS settings updated successfully',
+            'settings' => $this->getSmsSettings()->getData()
+        ]);
+    }
 }

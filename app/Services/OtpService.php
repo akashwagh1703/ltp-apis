@@ -3,15 +3,19 @@
 namespace App\Services;
 
 use App\Models\Otp;
+use App\Models\Setting;
 use Carbon\Carbon;
 
 class OtpService
 {
     public function generate($phone, $purpose = 'login')
     {
-        // Static OTP for development (no SMS integration yet)
-        $otp = '999999';
-        $expiryMinutes = config('app.otp_expiry_minutes', 10);
+        $defaultOtpEnabled = Setting::get('default_otp_enabled', 'true') === 'true';
+        $defaultOtp = Setting::get('default_otp', '999999');
+        $expiryMinutes = (int) Setting::get('otp_expiry_minutes', 10);
+
+        // Use default OTP if enabled, otherwise generate random
+        $otp = $defaultOtpEnabled ? $defaultOtp : str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
 
         Otp::create([
             'phone' => $phone,
@@ -25,8 +29,11 @@ class OtpService
 
     public function verify($phone, $otp, $purpose = 'login')
     {
-        // For development, always accept 999999
-        if ($otp === '999999') {
+        $defaultOtpEnabled = Setting::get('default_otp_enabled', 'true') === 'true';
+        $defaultOtp = Setting::get('default_otp', '999999');
+
+        // Always accept default OTP if enabled
+        if ($defaultOtpEnabled && $otp === $defaultOtp) {
             return true;
         }
 

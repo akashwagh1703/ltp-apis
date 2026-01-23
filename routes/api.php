@@ -66,6 +66,8 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('settings/{key}', 'SettingController@updateSingle');
         Route::get('settings/commission/rate', 'SettingController@getCommissionRate');
         Route::put('settings/commission/rate', 'SettingController@updateCommissionRate');
+        Route::get('settings/sms', 'SettingController@getSmsSettings');
+        Route::put('settings/sms', 'SettingController@updateSmsSettings');
         
         Route::get('owner-applications', 'OwnerApplicationController@index');
         Route::get('owner-applications/{id}', 'OwnerApplicationController@show');
