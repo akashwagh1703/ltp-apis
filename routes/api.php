@@ -138,6 +138,9 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
         Route::post('notifications/{id}/read', 'NotificationController@markAsRead');
         Route::post('notifications/read-all', 'NotificationController@markAllAsRead');
         
+        // Test endpoints (remove in production)
+        Route::post('test/notifications', 'TestController@createTestNotification');
+        
         Route::get('me', 'AuthController@me');
     });
 });

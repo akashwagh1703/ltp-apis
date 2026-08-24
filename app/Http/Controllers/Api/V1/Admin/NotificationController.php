@@ -23,11 +23,22 @@ class NotificationController extends Controller
         try {
             $userIds = $this->getTargetUserIds($request->target);
             
+            if (empty($userIds)) {
+                return response()->json([
+                    'message' => 'No users found for target: ' . $request->target
+                ], 400);
+            }
+            
             // Create individual notifications for each user
             $notifications = [];
             foreach ($userIds as $userData) {
                 $userId = is_array($userData) ? $userData['id'] : $userData;
                 $userType = is_array($userData) ? $userData['type'] : ($request->target === 'owners' ? 'owner' : 'player');
+                
+                // Skip if userId is null or empty
+                if (!$userId) {
+                    continue;
+                }
                 
                 $notification = Notification::create([
                     'user_id' => $userId,
