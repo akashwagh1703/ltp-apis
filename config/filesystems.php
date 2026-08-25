@@ -10,6 +10,7 @@ return [
     */
     'media_disk' => env('FILESYSTEM_MEDIA_DISK', 'public'),
     'media_prefix' => env('MINIO_PREFIX', 'ltp'),
+    'media_public_url' => env('MEDIA_PUBLIC_URL', rtrim((string) env('APP_URL'), '/') . '/api/v1/public/media'),
 
     'disks' => [
 

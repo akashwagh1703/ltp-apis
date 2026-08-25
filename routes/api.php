@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 // Public Routes (No Authentication Required)
 Route::prefix('v1/public')->namespace('App\Http\Controllers\Api\V1\Public')->group(function () {
         Route::post('owner-applications', 'OwnerApplicationController@store')->middleware('throttle:public-apply');
+        Route::get('media/{path}', 'MediaController@show')->where('path', '.*');
 });
 
 // Admin Routes

@@ -162,7 +162,7 @@ class MediaService
 
         $key = ltrim($key, '/');
 
-        if ($this->usingObjectStore() && $this->isObjectKey($key)) {
+        if ($this->usingObjectStore() && $this->isPublicObjectKey($key)) {
             return $this->publicUrl($key);
         }
 
@@ -220,28 +220,35 @@ class MediaService
 
     protected function write(string $key, string $body): void
     {
+        $this->ensureBucket();
         $disk = $this->disk();
 
         try {
             $ok = $disk->put($key, $body);
         } catch (\Throwable $e) {
-            if ($this->objectLooksStored($disk, $key)) {
-                \Log::warning('Media object saved; skipping ACL/visibility', [
+            if (str_contains($e->getMessage(), 'NoSuchBucket')) {
+                $this->bucketReady = false;
+                $this->ensureBucket();
+                $ok = $disk->put($key, $body);
+            } else {
+                if ($this->objectLooksStored($disk, $key)) {
+                    \Log::warning('Media object saved; skipping ACL/visibility', [
+                        'disk' => $this->diskName(),
+                        'key' => $key,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return;
+                }
+
+                \Log::error('Media write failed', [
                     'disk' => $this->diskName(),
                     'key' => $key,
                     'error' => $e->getMessage(),
                 ]);
 
-                return;
+                throw new RuntimeException($this->writeErrorMessage($e->getMessage()));
             }
-
-            \Log::error('Media write failed', [
-                'disk' => $this->diskName(),
-                'key' => $key,
-                'error' => $e->getMessage(),
-            ]);
-
-            throw new RuntimeException($this->writeErrorMessage($e->getMessage()));
         }
 
         if ($ok === false) {
@@ -254,6 +261,72 @@ class MediaService
                 'key' => $key,
             ]);
             throw new RuntimeException('Could not store the photo. Check MinIO endpoint, bucket, and keys.');
+        }
+    }
+
+    protected bool $bucketReady = false;
+
+    protected function ensureBucket(): void
+    {
+        if ($this->bucketReady || !$this->usingObjectStore()) {
+            return;
+        }
+
+        $disk = $this->disk();
+        if (!method_exists($disk, 'getClient')) {
+            $this->bucketReady = true;
+
+            return;
+        }
+
+        $client = $disk->getClient();
+        $bucket = (string) config('filesystems.disks.' . $this->diskName() . '.bucket');
+        if ($bucket === '') {
+            throw new RuntimeException('MINIO_BUCKET is empty. Set it to playltp.');
+        }
+
+        try {
+            if (!$client->doesBucketExist($bucket)) {
+                $params = ['Bucket' => $bucket];
+                $region = (string) config('filesystems.disks.minio.region', 'us-east-1');
+                if ($region !== '' && $region !== 'us-east-1') {
+                    $params['CreateBucketConfiguration'] = ['LocationConstraint' => $region];
+                }
+                $client->createBucket($params);
+                \Log::info('Created MinIO bucket', ['bucket' => $bucket]);
+            }
+            $this->ensurePublicRead($client, $bucket);
+        } catch (\Throwable $e) {
+            \Log::error('MinIO ensure bucket failed', [
+                'bucket' => $bucket,
+                'error' => $e->getMessage(),
+            ]);
+            throw new RuntimeException($this->writeErrorMessage($e->getMessage()));
+        }
+
+        $this->bucketReady = true;
+    }
+
+    protected function ensurePublicRead($client, string $bucket): void
+    {
+        $policy = json_encode([
+            'Version' => '2012-10-17',
+            'Statement' => [[
+                'Sid' => 'LtpPublicRead',
+                'Effect' => 'Allow',
+                'Principal' => ['AWS' => ['*']],
+                'Action' => ['s3:GetObject'],
+                'Resource' => ['arn:aws:s3:::' . $bucket . '/*'],
+            ]],
+        ], JSON_UNESCAPED_SLASHES);
+
+        try {
+            $client->putBucketPolicy([
+                'Bucket' => $bucket,
+                'Policy' => $policy,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Could not set MinIO public-read policy', ['error' => $e->getMessage()]);
         }
     }
 
@@ -274,8 +347,8 @@ class MediaService
         if (str_contains($msg, 'AccessDenied') || str_contains($msg, 'InvalidAccessKeyId') || str_contains($msg, 'SignatureDoesNotMatch') || str_contains($msg, '403')) {
             return 'MinIO rejected the upload. Check MINIO_ACCESS_KEY, MINIO_SECRET_KEY, and bucket playltp.';
         }
-        if (str_contains($msg, 'NoSuchBucket')) {
-            return 'MinIO bucket not found. Create bucket playltp or set MINIO_BUCKET.';
+        if (str_contains($msg, 'NoSuchBucket') || str_contains($msg, 'NotFound')) {
+            return 'MinIO bucket playltp was missing. The API will create it on the next upload after you deploy, or run: mc mb ltp/playltp';
         }
         if (str_contains($msg, 'UnableToSetVisibility') || str_contains($msg, 'AccessControlList') || str_contains($msg, 'PutObjectAcl')) {
             return 'MinIO does not allow public ACL. Uploads now skip ACL; redeploy this API.';
@@ -286,14 +359,17 @@ class MediaService
 
     protected function publicUrl(string $key): string
     {
-        $base = rtrim((string) config('filesystems.disks.' . $this->diskName() . '.url'), '/');
+        $base = rtrim((string) config('filesystems.media_public_url'), '/');
         if ($base === '') {
-            $endpoint = rtrim((string) config('filesystems.disks.' . $this->diskName() . '.endpoint'), '/');
-            $bucket = (string) config('filesystems.disks.' . $this->diskName() . '.bucket');
-            $base = $endpoint . '/' . $bucket;
+            $base = rtrim((string) config('app.url'), '/') . '/api/v1/public/media';
         }
 
         return $base . '/' . ltrim($key, '/');
+    }
+
+    public function isPublicObjectKey(string $key): bool
+    {
+        return $this->isObjectKey($key);
     }
 
     protected function isObjectKey(string $key): bool
