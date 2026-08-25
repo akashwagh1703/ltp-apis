@@ -96,7 +96,7 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::post('subscription-payments/{id}/reject', 'SubscriptionPaymentController@reject');
         
         Route::get('notifications/list', 'NotificationController@index');
-        Route::post('notifications/send-to-user', 'NotificationController@sendToUser');
+        Route::post('notifications/send-to-user/{userId?}', 'NotificationController@sendToUser');
         Route::post('notifications/send-to-all', 'NotificationController@sendToAll');
         Route::post('notifications/send', 'NotificationController@send');
         Route::get('notifications/history', 'NotificationController@history');
@@ -117,7 +117,7 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
     Route::get('banners', 'BannerController@index');
     Route::get('faqs', 'FaqController@index');
     Route::get('coupons/available', 'CouponController@available');
-    Route::post('coupons/validate', 'CouponController@validate');
+    Route::post('coupons/validate', 'CouponController@check');
     Route::get('book-options', function () {
         return response()->json([
             'success' => true,
@@ -191,6 +191,7 @@ Route::prefix('v1/owner')->group(function () {
         Route::get('slots', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'list']);
         Route::post('slots/update-prices', [\App\Http\Controllers\Api\V1\Owner\SlotController::class, 'updatePrices']);
         
+        Route::get('bookings/stats', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'stats']);
         Route::get('bookings', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'index']);
         Route::post('bookings/offline', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'createOffline']);
         Route::post('bookings/{id}/cancel', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'cancel']);
@@ -198,7 +199,6 @@ Route::prefix('v1/owner')->group(function () {
         Route::post('bookings/{id}/no-show', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'markNoShow']);
         Route::post('bookings/{id}/confirm-payment', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'confirmPayment']);
         Route::post('bookings/{id}/reject-payment', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'rejectPayment']);
-        Route::get('bookings/stats', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'stats']);
         
         Route::get('subscription', [\App\Http\Controllers\Api\V1\Owner\SubscriptionController::class, 'show']);
         Route::post('subscription/mark-paid', [\App\Http\Controllers\Api\V1\Owner\SubscriptionController::class, 'markPaid']);

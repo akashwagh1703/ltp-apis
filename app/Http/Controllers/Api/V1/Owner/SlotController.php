@@ -28,6 +28,14 @@ class SlotController extends Controller
             ->where('owner_id', auth()->id())
             ->firstOrFail();
 
+        $already = TurfSlot::where('turf_id', $turf->id)->where('date', $request->date)->count();
+        if ($already > 0) {
+            return response()->json([
+                'message' => 'Slots already generated for this date',
+                'count' => $already,
+            ]);
+        }
+
         $slots = $this->slotService->generateSlots(
             $turf->id,
             $request->date,
@@ -36,6 +44,10 @@ class SlotController extends Controller
             $turf->slot_duration,
             $turf->uniform_price
         );
+
+        if ($slots === []) {
+            return response()->json(['message' => 'No slots fit this turf timetable', 'count' => 0], 400);
+        }
 
         TurfSlot::insert($slots);
 
@@ -49,7 +61,11 @@ class SlotController extends Controller
             'date' => 'nullable|date',
         ]);
 
-        $query = TurfSlot::where('turf_id', $request->turf_id);
+        $turf = Turf::where('id', $request->turf_id)
+            ->where('owner_id', auth()->id())
+            ->firstOrFail();
+
+        $query = TurfSlot::where('turf_id', $turf->id);
         
         if ($request->date) {
             $query->where('date', $request->date);

@@ -79,6 +79,6 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return response()->json($bookings);
+        return \App\Http\Resources\BookingResource::collection($bookings);
     }
 }

@@ -44,13 +44,17 @@ class NotificationController extends Controller
                     'user_id' => $userId,
                     'user_type' => $userType,
                     'title' => $request->title,
-                    'body' => $request->message,
+                    'message' => $request->message,
                     'type' => 'general',
-                    'data' => json_encode([
+                    'target' => $request->target,
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'sent_by' => auth()->id(),
+                    'data' => [
                         'target' => $request->target,
                         'sent_by' => auth()->id(),
-                        'scheduled_at' => $request->scheduled_at
-                    ])
+                        'scheduled_at' => $request->scheduled_at,
+                    ],
                 ]);
                 
                 $notifications[] = $notification;
@@ -69,36 +73,64 @@ class NotificationController extends Controller
         }
     }
 
-    public function sendToUser(Request $request, $userId)
+    public function index(Request $request)
     {
+        return $this->history($request);
+    }
+
+    public function sendToAll(Request $request)
+    {
+        $request->merge([
+            'target' => $request->input('target')
+                ?: ($request->input('user_type') === 'owner' ? 'owners' : ($request->input('user_type') === 'player' ? 'players' : 'all')),
+            'message' => $request->input('message') ?: $request->input('body'),
+        ]);
+
+        return $this->send($request);
+    }
+
+    public function sendToUser(Request $request, $userId = null)
+    {
+        $request->merge([
+            'message' => $request->input('message') ?: $request->input('body'),
+        ]);
+
         $request->validate([
             'title' => 'required|string|max:255',
             'message' => 'required|string|max:500',
-            'user_type' => 'required|in:owner,player'
+            'user_type' => 'required|in:owner,player',
+            'user_id' => 'nullable|integer',
         ]);
+
+        $id = $userId ?: $request->input('user_id');
+        if (!$id) {
+            return response()->json(['message' => 'User ID is required'], 422);
+        }
 
         try {
             $notification = Notification::create([
+                'user_id' => $id,
+                'user_type' => $request->user_type,
                 'title' => $request->title,
                 'message' => $request->message,
+                'type' => 'general',
                 'target' => 'specific',
-                'user_ids' => json_encode([$userId]),
-                'user_type' => $request->user_type,
+                'user_ids' => [$id],
                 'sent_by' => auth()->id(),
                 'status' => 'sent',
-                'sent_at' => now()
+                'sent_at' => now(),
             ]);
 
-            $this->sendNotificationToUsers($notification, [$userId], $request->user_type);
+            $this->sendNotificationToUsers($notification, [$id], $request->user_type);
 
             return response()->json([
                 'message' => 'Notification sent successfully',
-                'data' => $notification
+                'data' => $notification,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to send notification',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

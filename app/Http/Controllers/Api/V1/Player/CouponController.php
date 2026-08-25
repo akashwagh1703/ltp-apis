@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 
 class CouponController extends Controller
 {
-    public function validate(Request $request, CouponService $coupons)
+    public function check(Request $request, CouponService $coupons)
     {
         $request->validate([
             'code' => 'required|string',

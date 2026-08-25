@@ -50,6 +50,13 @@ class Setting extends Model
         return max(0, min(90, $value));
     }
 
+    public static function getSubscriptionOverdueHideDays(): int
+    {
+        $value = (int) self::get('subscription_overdue_hide_days', 14);
+
+        return max(0, min(90, $value));
+    }
+
     public static function isDefaultOtpEnabled(): bool
     {
         return self::get('default_otp_enabled', 'false') === 'true';
