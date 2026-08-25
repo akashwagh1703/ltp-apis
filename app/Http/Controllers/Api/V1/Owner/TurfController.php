@@ -229,7 +229,12 @@ class TurfController extends Controller
                 $media->turfPhotoStem($turf->id, $cover),
                 true
             );
-        } catch (\RuntimeException $e) {
+        } catch (\Throwable $e) {
+            \Log::error('Owner turf photo upload failed', [
+                'turf_id' => $turf->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 

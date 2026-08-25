@@ -220,35 +220,68 @@ class MediaService
 
     protected function write(string $key, string $body): void
     {
+        $disk = $this->disk();
+
         try {
-            $options = $this->usingObjectStore() ? ['visibility' => 'public'] : [];
-            $ok = $this->disk()->put($key, $body, $options);
+            $ok = $disk->put($key, $body);
         } catch (\Throwable $e) {
+            if ($this->objectLooksStored($disk, $key)) {
+                \Log::warning('Media object saved; skipping ACL/visibility', [
+                    'disk' => $this->diskName(),
+                    'key' => $key,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return;
+            }
+
             \Log::error('Media write failed', [
                 'disk' => $this->diskName(),
                 'key' => $key,
                 'error' => $e->getMessage(),
             ]);
-            $msg = $e->getMessage();
-            if (str_contains($msg, 'Failed to connect') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection refused')) {
-                throw new RuntimeException('Could not reach MinIO. Check MINIO_ENDPOINT.');
-            }
-            if (str_contains($msg, 'AccessDenied') || str_contains($msg, 'InvalidAccessKeyId') || str_contains($msg, 'SignatureDoesNotMatch') || str_contains($msg, '403')) {
-                throw new RuntimeException('MinIO rejected the upload. Check keys and bucket.');
-            }
-            if (str_contains($msg, 'NoSuchBucket')) {
-                throw new RuntimeException('MinIO bucket not found. Create bucket playltp or set MINIO_BUCKET.');
-            }
-            throw new RuntimeException('Could not store the photo. Try a JPG or PNG under 12MB.');
+
+            throw new RuntimeException($this->writeErrorMessage($e->getMessage()));
         }
 
-        if (!$ok) {
+        if ($ok === false) {
+            if ($this->objectLooksStored($disk, $key)) {
+                return;
+            }
+
             \Log::error('Media write returned false', [
                 'disk' => $this->diskName(),
                 'key' => $key,
             ]);
-            throw new RuntimeException('Could not store the photo. Try a JPG or PNG under 12MB.');
+            throw new RuntimeException('Could not store the photo. Check MinIO endpoint, bucket, and keys.');
         }
+    }
+
+    protected function objectLooksStored($disk, string $key): bool
+    {
+        try {
+            return $disk->exists($key);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    protected function writeErrorMessage(string $msg): string
+    {
+        if (str_contains($msg, 'Failed to connect') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection refused') || str_contains($msg, 'cURL error')) {
+            return 'Could not reach MinIO. On the API server use MINIO_ENDPOINT=http://127.0.0.1:9000';
+        }
+        if (str_contains($msg, 'AccessDenied') || str_contains($msg, 'InvalidAccessKeyId') || str_contains($msg, 'SignatureDoesNotMatch') || str_contains($msg, '403')) {
+            return 'MinIO rejected the upload. Check MINIO_ACCESS_KEY, MINIO_SECRET_KEY, and bucket playltp.';
+        }
+        if (str_contains($msg, 'NoSuchBucket')) {
+            return 'MinIO bucket not found. Create bucket playltp or set MINIO_BUCKET.';
+        }
+        if (str_contains($msg, 'UnableToSetVisibility') || str_contains($msg, 'AccessControlList') || str_contains($msg, 'PutObjectAcl')) {
+            return 'MinIO does not allow public ACL. Uploads now skip ACL; redeploy this API.';
+        }
+
+        return 'Could not store the photo. Check API storage logs.';
     }
 
     protected function publicUrl(string $key): string

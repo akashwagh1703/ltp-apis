@@ -7,24 +7,25 @@ use App\Http\Resources\TurfImageResource;
 use App\Models\Turf;
 use App\Models\TurfImage;
 use App\Services\MediaService;
+use App\Support\UploadedFiles;
 use Illuminate\Http\Request;
-use RuntimeException;
+use Throwable;
 
 class TurfImageController extends Controller
 {
     public function upload(Request $request, $turfId)
     {
         $turf = Turf::with('images')->findOrFail($turfId);
-        $files = [];
-        foreach ($request->allFiles() as $fileOrArray) {
-            foreach (is_array($fileOrArray) ? $fileOrArray : [$fileOrArray] as $file) {
-                if ($file && $file->isValid()) {
-                    $files[] = $file;
-                }
-            }
-        }
+        $files = UploadedFiles::all($request);
 
         if (!$files) {
+            \Log::warning('Admin turf photo missing', [
+                'turf_id' => $turfId,
+                'content_type' => $request->header('Content-Type'),
+                'keys' => array_keys($request->all()),
+                'files' => array_keys($request->allFiles()),
+            ]);
+
             return response()->json(['message' => 'No files received'], 400);
         }
 
@@ -49,8 +50,16 @@ class TurfImageController extends Controller
                     'is_primary' => $cover && count($uploaded) === 0,
                     'order' => $existing + count($uploaded),
                 ]);
-            } catch (RuntimeException $e) {
-                return response()->json(['message' => $e->getMessage()], 422);
+            } catch (Throwable $e) {
+                \Log::error('Admin turf image upload failed', [
+                    'turf_id' => $turf->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
             }
         }
 

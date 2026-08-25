@@ -40,8 +40,10 @@ return [
                 FILTER_VALIDATE_BOOLEAN
             ),
             'url' => env('MINIO_URL'),
-            'visibility' => 'public',
             'throw' => true,
+            'report' => false,
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
         ],
 
         'minio_private' => [
