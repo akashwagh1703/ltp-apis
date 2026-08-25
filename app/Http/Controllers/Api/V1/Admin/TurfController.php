@@ -58,6 +58,8 @@ class TurfController extends Controller
             'slot_duration' => $request->slot_duration,
             'pricing_type' => $request->pricing_type,
             'uniform_price' => $request->uniform_price,
+            'status' => Turf::STATUS_SUBMITTED,
+            'submitted_at' => now(),
         ];
         
         $turf = Turf::create($data);
@@ -146,10 +148,6 @@ class TurfController extends Controller
             'uniform_price' => $request->uniform_price,
         ];
         
-        if ($request->has('status')) {
-            $data['status'] = $request->status;
-        }
-        
         $turf->update($data);
 
         if ($request->hasFile('images')) {
@@ -210,12 +208,22 @@ class TurfController extends Controller
     {
         $turf = Turf::with('owner')->findOrFail($id);
 
+        if ($turf->status !== Turf::STATUS_SUBMITTED) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only submitted turfs can be approved.',
+            ], 422);
+        }
+
         if ($error = $this->upiRequiredResponse($turf)) {
             return $error;
         }
 
         $turf->update(['status' => Turf::STATUS_LIVE, 'rejection_reason' => null]);
-        return response()->json(['message' => 'Turf approved successfully', 'data' => new TurfResource($turf)]);
+        return response()->json([
+            'message' => 'Turf approved. It can now take bookings.',
+            'data' => new TurfResource($turf),
+        ]);
     }
 
     public function reject(Request $request, $id)

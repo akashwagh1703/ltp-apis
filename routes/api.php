@@ -171,6 +171,7 @@ Route::prefix('v1/owner')->group(function () {
         Route::post('auth/logout', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'logout']);
         Route::put('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile'])->middleware('throttle:uploads');
         Route::post('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile'])->middleware('throttle:uploads');
+        Route::post('auth/upi', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateUpi'])->middleware('throttle:uploads');
         
         Route::get('dashboard/stats', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'stats']);
         Route::get('dashboard/recent-bookings', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'recentBookings']);

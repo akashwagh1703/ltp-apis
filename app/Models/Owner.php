@@ -89,6 +89,24 @@ class Owner extends Authenticatable
         return $this->hasMany(SubscriptionPayment::class);
     }
 
+    public static function normalizeUpiId(?string $upi): ?string
+    {
+        if ($upi === null) {
+            return null;
+        }
+
+        $upi = strtolower(trim(preg_replace('/\s+/', '', $upi) ?? ''));
+
+        return $upi === '' ? null : $upi;
+    }
+
+    public static function isValidUpiId(?string $upi): bool
+    {
+        $upi = self::normalizeUpiId($upi);
+
+        return $upi !== null && (bool) preg_match('/^[a-z0-9._-]{2,256}@[a-z0-9][a-z0-9.-]{1,63}$/', $upi);
+    }
+
     public function hasUpiSetup(): bool
     {
         return filled($this->upi_id) && filled($this->upi_qr_path);

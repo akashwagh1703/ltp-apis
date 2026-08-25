@@ -106,7 +106,19 @@ class BookingController extends Controller
             $lastSlot = $slots->last();
             $totalAmount = $slots->sum('price');
             $duration = $slots->count() * 60;
-            $owner = $firstSlot->turf->owner;
+            $turf = $firstSlot->turf;
+            if (!$turf || !$turf->canTakeBookings()) {
+                \DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'TURF_NOT_APPROVED',
+                        'message' => 'This turf is not live yet. Bookings open after LTP approves it.',
+                    ],
+                    'message' => 'This turf is not live yet. Bookings open after LTP approves it.',
+                ], 403);
+            }
+            $owner = $turf->owner;
             if (!$owner || !$owner->hasUpiSetup()) {
                 \DB::rollBack();
                 return response()->json([

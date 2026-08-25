@@ -101,4 +101,14 @@ class Turf extends Model
     {
         return $this->hasMany(TurfUpdateRequest::class);
     }
+
+    public function isLive(): bool
+    {
+        return $this->status === self::STATUS_LIVE;
+    }
+
+    public function canTakeBookings(): bool
+    {
+        return $this->isLive();
+    }
 }

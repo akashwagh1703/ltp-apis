@@ -34,25 +34,34 @@ class TurfController extends Controller
 
     public function store(Request $request)
     {
-        $turf = Turf::create([
-            'owner_id' => $request->user()->id,
-            'name' => 'Untitled turf',
-            'description' => '',
-            'sport_type' => 'football',
-            'address_line1' => '',
-            'city' => '',
-            'state' => '',
-            'pincode' => '000000',
-            'opening_time' => '06:00:00',
-            'closing_time' => '22:00:00',
-            'slot_duration' => 60,
-            'pricing_type' => 'uniform',
-            'status' => Turf::STATUS_DRAFT,
-        ]);
+        try {
+            $turf = Turf::create([
+                'owner_id' => $request->user()->id,
+                'name' => 'Untitled turf',
+                'description' => '',
+                'sport_type' => 'football',
+                'address_line1' => '',
+                'city' => '',
+                'state' => '',
+                'pincode' => '000000',
+                'opening_time' => '06:00:00',
+                'closing_time' => '22:00:00',
+                'slot_duration' => 60,
+                'pricing_type' => 'uniform',
+                'status' => Turf::STATUS_DRAFT,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Owner turf draft failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not start a turf draft. Try again.',
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Draft started',
+            'message' => 'Draft started. Submit it to LTP when the details are complete.',
             'data' => (new TurfResource($turf->load(['images', 'pricing'])))->resolve(),
         ], 201);
     }
@@ -153,8 +162,11 @@ class TurfController extends Controller
         if (!$owner->hasUpiSetup()) {
             return response()->json([
                 'success' => false,
-                'error' => ['code' => 'UPI_REQUIRED', 'message' => 'Add UPI to submit this turf.'],
-                'message' => 'Add UPI to submit this turf.',
+                'error' => [
+                    'code' => 'UPI_REQUIRED',
+                    'message' => 'Add your UPI ID and QR before submitting this turf to LTP.',
+                ],
+                'message' => 'Add your UPI ID and QR before submitting this turf to LTP.',
             ], 422);
         }
 

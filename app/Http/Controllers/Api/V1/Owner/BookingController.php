@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Models\Turf;
 use App\Models\TurfSlot;
 use App\Services\FcmService;
 use App\Services\SmsService;
@@ -89,9 +90,35 @@ class BookingController extends Controller
             ]);
             
             \Log::info('Validation passed');
+
+            $turf = Turf::where('id', $request->turf_id)
+                ->where('owner_id', $request->user()->id)
+                ->first();
+
+            if (!$turf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Turf not found.',
+                ], 404);
+            }
+
+            if (!$turf->canTakeBookings()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'TURF_NOT_APPROVED',
+                        'message' => 'Wait for LTP to approve this turf before taking bookings.',
+                    ],
+                    'message' => 'Wait for LTP to approve this turf before taking bookings.',
+                ], 403);
+            }
             
             // Get first slot
             $firstSlot = TurfSlot::findOrFail($request->slot_ids[0]);
+
+            if ((int) $firstSlot->turf_id !== (int) $turf->id) {
+                return response()->json(['message' => 'Those slots do not belong to this turf'], 400);
+            }
             
             // Check all slots are available
             $slots = TurfSlot::whereIn('id', $request->slot_ids)->get();
@@ -101,6 +128,9 @@ class BookingController extends Controller
             }
             
             foreach ($slots as $slot) {
+                if ((int) $slot->turf_id !== (int) $turf->id) {
+                    return response()->json(['message' => 'Those slots do not belong to this turf'], 400);
+                }
                 if ($slot->status !== 'available') {
                     return response()->json(['message' => "Slot {$slot->start_time} is already {$slot->status}"], 400);
                 }

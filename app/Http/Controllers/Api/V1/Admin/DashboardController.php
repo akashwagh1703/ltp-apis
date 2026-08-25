@@ -114,7 +114,7 @@ class DashboardController extends Controller
                     'id' => 3,
                     'type' => 'listing',
                     'title' => 'Turf listings',
-                    'description' => "{$pendingListings} listing(s) to review",
+                    'description' => "{$pendingListings} listing(s) waiting for approval",
                     'priority' => 'high',
                     'link' => '/turfs'
                 ];

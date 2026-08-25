@@ -96,18 +96,26 @@ class AuthController extends Controller
     {
         $owner = $request->user();
 
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'sometimes|string|max:255',
             'email' => 'nullable|email|max:255',
             'profile_image' => 'sometimes|nullable|string|max:500',
-            'upi_id' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/'],
+            'upi_id' => 'sometimes|nullable|string|max:80',
             'qr' => 'sometimes|file|max:12288',
         ]);
 
         $owner->fill($request->only(['name', 'email', 'profile_image']));
 
         if ($request->filled('upi_id')) {
-            $owner->upi_id = strtolower(trim($request->input('upi_id')));
+            $upi = Owner::normalizeUpiId($request->input('upi_id'));
+            if (!Owner::isValidUpiId($upi)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Enter a valid UPI ID, like name@oksbi or 9876543210@ybl.',
+                    'errors' => ['upi_id' => ['Enter a valid UPI ID, like name@oksbi or 9876543210@ybl.']],
+                ], 422);
+            }
+            $owner->upi_id = $upi;
         }
 
         if ($request->hasFile('qr')) {
@@ -126,6 +134,60 @@ class AuthController extends Controller
             'message' => $owner->hasUpiSetup()
                 ? 'UPI saved. Players can pay you by scanning this QR.'
                 : 'Profile updated',
+        ]);
+    }
+
+    public function updateUpi(Request $request)
+    {
+        $owner = $request->user();
+
+        $request->validate([
+            'upi_id' => 'required|string|max:80',
+            'qr' => 'sometimes|file|max:12288',
+        ]);
+
+        $upi = Owner::normalizeUpiId($request->input('upi_id'));
+        if (!Owner::isValidUpiId($upi)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Enter a valid UPI ID, like name@oksbi or 9876543210@ybl.',
+                'errors' => ['upi_id' => ['Enter a valid UPI ID, like name@oksbi or 9876543210@ybl.']],
+            ], 422);
+        }
+
+        $needsQr = !filled($owner->upi_qr_path);
+        if ($needsQr && !$request->hasFile('qr')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Upload a JPG or PNG photo of your UPI QR. The photo did not reach the server.',
+                'errors' => ['qr' => ['Upload a JPG or PNG photo of your UPI QR.']],
+            ], 422);
+        }
+
+        $owner->upi_id = $upi;
+
+        if ($request->hasFile('qr')) {
+            try {
+                $owner->upi_qr_path = $owner->storeUpiQr($request->file('qr'));
+            } catch (\RuntimeException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+        }
+
+        $owner->save();
+        $owner = $owner->fresh();
+
+        if (!$owner->hasUpiSetup()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'UPI ID saved, but the QR photo is still missing. Upload a JPG or PNG of your QR.',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => (new \App\Http\Resources\OwnerResource($owner))->resolve(),
+            'message' => 'UPI saved. Submit your turf to LTP when the details are complete.',
         ]);
     }
 

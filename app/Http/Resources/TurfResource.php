@@ -33,6 +33,7 @@ class TurfResource extends JsonResource
                 return $row ? (float) $row->price : null;
             }),
             'status' => $this->status,
+            'is_live' => $this->isLive(),
             'is_featured' => $this->is_featured,
             'rejection_reason' => $this->rejection_reason,
             'submitted_at' => $this->submitted_at,
