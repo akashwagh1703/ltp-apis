@@ -28,10 +28,20 @@ class TurfResource extends JsonResource
             'slot_duration' => $this->slot_duration,
             'pricing_type' => $this->pricing_type,
             'uniform_price' => $this->uniform_price,
+            'weekend_price' => $this->whenLoaded('pricing', function () {
+                $row = $this->pricing->firstWhere('day_type', 'weekend');
+                return $row ? (float) $row->price : null;
+            }),
             'status' => $this->status,
             'is_featured' => $this->is_featured,
-            'distance' => isset($this->distance) ? round($this->distance, 1) : null,
+            'rejection_reason' => $this->rejection_reason,
+            'submitted_at' => $this->submitted_at,
+            'distance' => isset($this->distance) ? round((float) $this->distance, 1) : null,
+            'is_favorite' => (bool) ($this->is_favorite ?? false),
+            'average_rating' => $this->approved_reviews_avg_rating !== null ? round((float) $this->approved_reviews_avg_rating, 1) : null,
+            'reviews_count' => (int) ($this->approved_reviews_count ?? 0),
             'owner' => new OwnerResource($this->whenLoaded('owner')),
+            'owner_has_upi' => $this->whenLoaded('owner', fn () => (bool) $this->owner?->hasUpiSetup()),
             'images' => TurfImageResource::collection($this->whenLoaded('images')),
             'amenities' => TurfAmenityResource::collection($this->whenLoaded('amenities')),
             'pricing' => TurfPricingResource::collection($this->whenLoaded('pricing')),

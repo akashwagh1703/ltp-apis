@@ -44,6 +44,10 @@ return [
         'credentials_path' => env('FIREBASE_CREDENTIALS', 'storage/firebase-credentials.json'),
     ],
 
+    'sentry' => [
+        'dsn' => env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')),
+    ],
+
     'whatsapp' => [
         'api_url' => env('WHATSAPP_API_URL', 'https://graph.facebook.com/v18.0'),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),

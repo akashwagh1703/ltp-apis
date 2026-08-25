@@ -4,12 +4,12 @@ use Illuminate\Support\Facades\Route;
 
 // Public Routes (No Authentication Required)
 Route::prefix('v1/public')->namespace('App\Http\Controllers\Api\V1\Public')->group(function () {
-    Route::post('owner-applications', 'OwnerApplicationController@store');
+        Route::post('owner-applications', 'OwnerApplicationController@store')->middleware('throttle:public-apply');
 });
 
 // Admin Routes
 Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group(function () {
-    Route::post('login', 'AuthController@login');
+    Route::post('login', 'AuthController@login')->middleware('throttle:login');
     
     Route::middleware(['auth:sanctum', 'admin.auth'])->group(function () {
         Route::post('logout', 'AuthController@logout');
@@ -30,9 +30,11 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::post('turfs/{id}/suspend', 'TurfController@suspend');
         Route::post('turfs/{id}/activate', 'TurfController@activate');
         Route::post('turfs/{id}/toggle-featured', 'TurfController@toggleFeatured');
-        Route::post('turfs/{id}/images', 'TurfImageController@upload');
+        Route::post('turfs/{id}/images', 'TurfImageController@upload')->middleware('throttle:uploads');
         Route::delete('turf-images/{id}', 'TurfImageController@delete');
         Route::post('turf-images/{id}/set-primary', 'TurfImageController@setPrimary');
+        Route::post('media/presign', 'MediaController@presign')->middleware('throttle:uploads');
+        Route::post('media/complete', 'MediaController@complete')->middleware('throttle:uploads');
         Route::apiResource('bookings', 'BookingController')->only(['index', 'show']);
         Route::post('bookings/{id}/cancel', 'BookingController@cancel');
         
@@ -74,6 +76,8 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('settings/sms', 'SettingController@updateSmsSettings');
         Route::get('settings/payment', 'SettingController@getPaymentSettings');
         Route::put('settings/payment', 'SettingController@updatePaymentSettings');
+        Route::get('settings/platform-upi', 'SettingController@getPlatformUpi');
+        Route::match(['put', 'post'], 'settings/platform-upi', 'SettingController@updatePlatformUpi')->middleware('throttle:uploads');
         Route::put('settings/{key}', 'SettingController@updateSingle');
         
         Route::get('owner-applications', 'OwnerApplicationController@index');
@@ -87,6 +91,9 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
         Route::put('subscriptions/plans/{id}', 'SubscriptionController@updatePlan');
         Route::get('subscriptions/owners-without', 'SubscriptionController@ownersWithoutSubscription');
         Route::get('subscriptions/statistics', 'SubscriptionController@statistics');
+        Route::get('subscription-payments', 'SubscriptionPaymentController@index');
+        Route::post('subscription-payments/{id}/confirm', 'SubscriptionPaymentController@confirm');
+        Route::post('subscription-payments/{id}/reject', 'SubscriptionPaymentController@reject');
         
         Route::get('notifications/list', 'NotificationController@index');
         Route::post('notifications/send-to-user', 'NotificationController@sendToUser');
@@ -99,27 +106,36 @@ Route::prefix('v1/admin')->namespace('App\Http\Controllers\Api\V1\Admin')->group
 
 // Player Routes
 Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->group(function () {
-    Route::post('auth/send-otp', 'AuthController@sendOtp');
-    Route::post('auth/verify-otp', 'AuthController@verifyOtp');
+    Route::post('auth/send-otp', 'AuthController@sendOtp')->middleware('throttle:otp');
+    Route::post('auth/verify-otp', 'AuthController@verifyOtp')->middleware('throttle:login');
     
     Route::get('turfs', 'TurfController@index');
     Route::get('turfs/featured', 'TurfController@featured');
     Route::get('turfs/{id}', 'TurfController@show');
     Route::get('slots/available', 'SlotController@available');
-    Route::post('slots/generate', 'SlotController@generate');
-    Route::post('slots/update-prices', 'SlotController@updatePrices');
     
     Route::get('banners', 'BannerController@index');
     Route::get('faqs', 'FaqController@index');
     Route::get('coupons/available', 'CouponController@available');
     Route::post('coupons/validate', 'CouponController@validate');
+    Route::get('book-options', function () {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'booking_advance_percent' => \App\Models\Setting::getBookingAdvancePercent(),
+            ],
+        ]);
+    });
     
     Route::middleware(['auth:sanctum', 'player.auth'])->group(function () {
         Route::post('auth/logout', 'AuthController@logout');
-        Route::put('auth/profile', 'AuthController@updateProfile');
+        Route::put('auth/profile', 'AuthController@updateProfile')->middleware('throttle:uploads');
         
         Route::get('bookings', 'BookingController@index');
         Route::post('bookings', 'BookingController@store');
+        Route::get('bookings/{id}', 'BookingController@show');
+        Route::post('bookings/{id}/mark-paid', 'BookingController@markPaid');
+        Route::post('bookings/{id}/pay-on-arrival', 'BookingController@payOnArrival');
         Route::post('bookings/{id}/confirm-payment', 'BookingController@confirmPayment');
         Route::post('bookings/{id}/cancel', 'BookingController@cancel');
         
@@ -128,6 +144,10 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
         
         Route::post('reviews', 'ReviewController@store');
         Route::get('reviews/my', 'ReviewController@myReviews');
+
+        Route::get('favorites', 'FavoriteController@index');
+        Route::post('favorites', 'FavoriteController@store');
+        Route::delete('favorites/{turfId}', 'FavoriteController@destroy');
         
         Route::post('fcm/register-token', 'FcmController@registerToken');
         Route::get('fcm/notifications', 'FcmController@getNotifications');
@@ -138,27 +158,32 @@ Route::prefix('v1/player')->namespace('App\Http\Controllers\Api\V1\Player')->gro
         Route::post('notifications/{id}/read', 'NotificationController@markAsRead');
         Route::post('notifications/read-all', 'NotificationController@markAllAsRead');
         
-        // Test endpoints (remove in production)
-        Route::post('test/notifications', 'TestController@createTestNotification');
-        
         Route::get('me', 'AuthController@me');
     });
 });
 
 // Owner Routes
 Route::prefix('v1/owner')->group(function () {
-    Route::post('auth/send-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'sendOtp']);
-    Route::post('auth/verify-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'verifyOtp']);
+    Route::post('auth/send-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'sendOtp'])->middleware('throttle:otp');
+    Route::post('auth/verify-otp', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'verifyOtp'])->middleware('throttle:login');
     
     Route::middleware(['auth:sanctum', 'owner.auth'])->group(function () {
         Route::post('auth/logout', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'logout']);
-        Route::put('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile']);
+        Route::put('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile'])->middleware('throttle:uploads');
+        Route::post('auth/profile', [\App\Http\Controllers\Api\V1\Owner\AuthController::class, 'updateProfile'])->middleware('throttle:uploads');
         
         Route::get('dashboard/stats', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'stats']);
         Route::get('dashboard/recent-bookings', [\App\Http\Controllers\Api\V1\Owner\DashboardController::class, 'recentBookings']);
         
         Route::get('turfs', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'index']);
+        Route::post('turfs', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'store']);
         Route::get('turfs/{id}', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'show']);
+        Route::match(['put', 'post'], 'turfs/{id}', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'update']);
+        Route::post('turfs/{id}/submit', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'submit']);
+        Route::post('turfs/{id}/images', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'uploadImage'])->middleware('throttle:uploads');
+        Route::delete('turfs/{id}/images/{imageId}', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'deleteImage']);
+        Route::post('media/presign', [\App\Http\Controllers\Api\V1\Owner\MediaController::class, 'presign'])->middleware('throttle:uploads');
+        Route::post('media/complete', [\App\Http\Controllers\Api\V1\Owner\MediaController::class, 'complete'])->middleware('throttle:uploads');
         Route::post('turfs/{id}/request-update', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'requestUpdate']);
         Route::get('turf-update-requests', [\App\Http\Controllers\Api\V1\Owner\TurfController::class, 'getUpdateRequests']);
         
@@ -172,7 +197,11 @@ Route::prefix('v1/owner')->group(function () {
         Route::post('bookings/{id}/complete', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'complete']);
         Route::post('bookings/{id}/no-show', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'markNoShow']);
         Route::post('bookings/{id}/confirm-payment', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'confirmPayment']);
+        Route::post('bookings/{id}/reject-payment', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'rejectPayment']);
         Route::get('bookings/stats', [\App\Http\Controllers\Api\V1\Owner\BookingController::class, 'stats']);
+        
+        Route::get('subscription', [\App\Http\Controllers\Api\V1\Owner\SubscriptionController::class, 'show']);
+        Route::post('subscription/mark-paid', [\App\Http\Controllers\Api\V1\Owner\SubscriptionController::class, 'markPaid']);
         
         Route::get('payouts', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'index']);
         Route::get('payouts/unpaid/bookings', [\App\Http\Controllers\Api\V1\Owner\PayoutController::class, 'unpaidBookings']);

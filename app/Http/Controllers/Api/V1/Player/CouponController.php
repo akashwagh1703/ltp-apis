@@ -4,61 +4,55 @@ namespace App\Http\Controllers\Api\V1\Player;
 
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
-use Carbon\Carbon;
+use App\Services\CouponService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CouponController extends Controller
 {
-    public function validate(Request $request)
+    public function validate(Request $request, CouponService $coupons)
     {
         $request->validate([
             'code' => 'required|string',
-            'amount' => 'required|numeric',
+            'amount' => 'required|numeric|min:0',
         ]);
 
-        $coupon = Coupon::where('code', $request->code)
-            ->where('is_active', true)
-            ->where('valid_from', '<=', Carbon::now())
-            ->where('valid_to', '>=', Carbon::now())
-            ->first();
-
-        if (!$coupon) {
-            return response()->json(['message' => 'Invalid or expired coupon'], 400);
-        }
-
-        if ($coupon->usage_limit && $coupon->used_count >= $coupon->usage_limit) {
-            return response()->json(['message' => 'Coupon usage limit reached'], 400);
-        }
-
-        if ($request->amount < $coupon->min_booking_amount) {
-            return response()->json(['message' => "Minimum booking amount is {$coupon->min_booking_amount}"], 400);
-        }
-
-        $discount = 0;
-        if ($coupon->discount_type === 'percentage') {
-            $discount = ($request->amount * $coupon->discount_value) / 100;
-            if ($coupon->max_discount && $discount > $coupon->max_discount) {
-                $discount = $coupon->max_discount;
-            }
-        } else {
-            $discount = $coupon->discount_value;
+        try {
+            $coupon = $coupons->findUsable($request->code);
+            $discount = $coupons->discountFor($coupon, (float) $request->amount);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?: 'Invalid coupon',
+            ], 400);
         }
 
         return response()->json([
+            'success' => true,
             'valid' => true,
             'discount' => $discount,
-            'final_amount' => $request->amount - $discount,
-            'coupon' => $coupon,
+            'final_amount' => round((float) $request->amount - $discount, 2),
+            'coupon' => [
+                'code' => $coupon->code,
+                'description' => $coupon->description,
+                'discount_type' => $coupon->discount_type,
+                'discount_value' => (float) $coupon->discount_value,
+            ],
         ]);
     }
 
     public function available()
     {
-        $coupons = Coupon::where('is_active', true)
-            ->where('valid_from', '<=', Carbon::now())
-            ->where('valid_to', '>=', Carbon::now())
-            ->get();
+        $coupons = Coupon::query()
+            ->where('is_active', true)
+            ->whereDate('valid_from', '<=', now())
+            ->whereDate('valid_to', '>=', now())
+            ->get(['code', 'description', 'discount_type', 'discount_value', 'min_booking_amount', 'max_discount', 'valid_to']);
 
-        return response()->json($coupons);
+        return response()->json([
+            'success' => true,
+            'data' => $coupons,
+            'booking_advance_percent' => \App\Models\Setting::getBookingAdvancePercent(),
+        ]);
     }
 }

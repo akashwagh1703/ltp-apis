@@ -37,9 +37,19 @@ class CouponController extends Controller
                 'min_booking_amount' => 'nullable|numeric|min:0',
                 'usage_limit' => 'nullable|integer|min:1',
                 'valid_from' => 'required|date',
-                'valid_until' => 'required|date|after:valid_from',
+                'valid_until' => 'nullable|date|after:valid_from',
+                'valid_to' => 'nullable|date|after:valid_from',
                 'is_active' => 'nullable|boolean',
             ]);
+
+            $validated['valid_to'] = $validated['valid_to'] ?? $validated['valid_until'] ?? null;
+            unset($validated['valid_until']);
+            if (empty($validated['valid_to'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'valid_to is required',
+                ], 422);
+            }
 
             // Validate percentage discount
             if ($validated['discount_type'] === 'percentage' && $validated['discount_value'] > 100) {
@@ -84,19 +94,16 @@ class CouponController extends Controller
                 'min_booking_amount' => 'nullable|numeric|min:0',
                 'usage_limit' => 'nullable|integer|min:1',
                 'valid_from' => 'sometimes|required|date',
-                'valid_until' => 'sometimes|required|date|after:valid_from',
+                'valid_until' => 'nullable|date|after:valid_from',
+                'valid_to' => 'nullable|date|after:valid_from',
                 'is_active' => 'nullable|boolean',
             ]);
 
             $coupon = Coupon::findOrFail($id);
 
-            // Validate percentage discount
-            if (isset($validated['discount_type']) && $validated['discount_type'] === 'percentage' && 
-                isset($validated['discount_value']) && $validated['discount_value'] > 100) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Percentage discount cannot exceed 100%'
-                ], 422);
+            if (array_key_exists('valid_until', $validated) || array_key_exists('valid_to', $validated)) {
+                $validated['valid_to'] = $validated['valid_to'] ?? $validated['valid_until'] ?? $coupon->valid_to;
+                unset($validated['valid_until']);
             }
 
             $coupon->update($validated);

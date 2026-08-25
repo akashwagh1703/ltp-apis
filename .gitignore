@@ -1,3 +1,4 @@
+/storage/app/backups/
 /vendor/
 /node_modules/
 /.env

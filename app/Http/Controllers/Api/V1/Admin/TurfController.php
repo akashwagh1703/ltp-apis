@@ -20,6 +20,8 @@ class TurfController extends Controller
 
         if ($request->status) {
             $query->where('status', $request->status);
+        } else {
+            $query->where('status', '!=', Turf::STATUS_DRAFT);
         }
 
         if ($request->owner_id) {
@@ -60,30 +62,8 @@ class TurfController extends Controller
         
         $turf = Turf::create($data);
 
-        // Handle image uploads
         if ($request->hasFile('images')) {
-            $images = is_array($request->file('images')) ? $request->file('images') : [$request->file('images')];
-            $index = 0;
-            
-            foreach ($images as $image) {
-                if ($image && $image->isValid()) {
-                    try {
-                        $path = $image->store('turfs', 'public');
-                        if ($path) {
-                            TurfImage::create([
-                                'turf_id' => $turf->id,
-                                'image_path' => $path,
-                                'is_primary' => $index === 0,
-                                'order' => $index,
-                            ]);
-                            $index++;
-                        }
-                    } catch (\Exception $e) {
-                        \Log::error('Image upload failed: ' . $e->getMessage());
-                        // Continue with other images
-                    }
-                }
-            }
+            $this->storeUploadedImages($turf, $request->file('images'));
         }
 
         // Handle amenities (JSON string from FormData)
@@ -172,38 +152,11 @@ class TurfController extends Controller
         
         $turf->update($data);
 
-        // Update images only if new files uploaded
         if ($request->hasFile('images')) {
-            $images = is_array($request->file('images')) ? $request->file('images') : [$request->file('images')];
-            $uploadedCount = 0;
-            $tempImages = [];
-            
-            // First, upload all images
-            foreach ($images as $image) {
-                if ($image && $image->isValid()) {
-                    try {
-                        $path = $image->store('turfs', 'public');
-                        if ($path) {
-                            $tempImages[] = $path;
-                            $uploadedCount++;
-                        }
-                    } catch (\Exception $e) {
-                        \Log::error('Image upload failed: ' . $e->getMessage());
-                    }
-                }
-            }
-            
-            // Only delete old images if new ones uploaded successfully
-            if ($uploadedCount > 0) {
-                $turf->images()->delete();
-                foreach ($tempImages as $index => $path) {
-                    TurfImage::create([
-                        'turf_id' => $turf->id,
-                        'image_path' => $path,
-                        'is_primary' => $index === 0,
-                        'order' => $index,
-                    ]);
-                }
+            $old = $turf->images()->get();
+            $added = $this->storeUploadedImages($turf, $request->file('images'));
+            if ($added > 0) {
+                $old->each->delete();
             }
         }
 
@@ -255,16 +208,28 @@ class TurfController extends Controller
 
     public function approve($id)
     {
-        $turf = Turf::findOrFail($id);
-        $turf->update(['status' => 'approved']);
+        $turf = Turf::with('owner')->findOrFail($id);
+
+        if ($error = $this->upiRequiredResponse($turf)) {
+            return $error;
+        }
+
+        $turf->update(['status' => Turf::STATUS_LIVE, 'rejection_reason' => null]);
         return response()->json(['message' => 'Turf approved successfully', 'data' => new TurfResource($turf)]);
     }
 
     public function reject(Request $request, $id)
     {
         $turf = Turf::findOrFail($id);
-        $turf->update(['status' => 'suspended']);
-        return response()->json(['message' => 'Turf rejected successfully', 'data' => new TurfResource($turf)]);
+        $reason = $request->input('reason') ?: $request->input('admin_notes') ?: 'Does not meet requirements';
+        $turf->update([
+            'status' => Turf::STATUS_DRAFT,
+            'rejection_reason' => $reason,
+        ]);
+        return response()->json([
+            'message' => 'Told the owner. They can fix it and submit again.',
+            'data' => new TurfResource($turf),
+        ]);
     }
 
     public function suspend(Request $request, $id)
@@ -276,7 +241,12 @@ class TurfController extends Controller
 
     public function activate($id)
     {
-        $turf = Turf::findOrFail($id);
+        $turf = Turf::with('owner')->findOrFail($id);
+
+        if ($error = $this->upiRequiredResponse($turf)) {
+            return $error;
+        }
+
         $turf->update(['status' => 'approved']);
         return response()->json(['message' => 'Turf activated successfully', 'data' => new TurfResource($turf)]);
     }
@@ -289,6 +259,23 @@ class TurfController extends Controller
             'message' => $turf->is_featured ? 'Turf marked as featured' : 'Turf removed from featured',
             'data' => new TurfResource($turf)
         ]);
+    }
+
+    private function upiRequiredResponse(Turf $turf)
+    {
+        $owner = $turf->owner;
+        if ($owner && $owner->hasUpiSetup()) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'error' => [
+                'code' => 'UPI_REQUIRED',
+                'message' => 'Owner must add a UPI ID and QR before this turf can go live.',
+            ],
+            'message' => 'Owner must add a UPI ID and QR before this turf can go live.',
+        ], 422);
     }
 
     private function updateSlotPrices($turfId)
@@ -339,5 +326,39 @@ class TurfController extends Controller
             ->first();
 
         return $pricing ? $pricing->price : ($turf->uniform_price ?? 500.00);
+    }
+
+    private function storeUploadedImages(Turf $turf, $images): int
+    {
+        $images = is_array($images) ? $images : [$images];
+        $media = app(\App\Services\MediaService::class);
+        $count = 0;
+
+        foreach ($images as $image) {
+            if (!$image || !$image->isValid()) {
+                continue;
+            }
+            if ($count >= 9) {
+                break;
+            }
+            try {
+                $path = $media->putUploadedFile(
+                    $image,
+                    $media->turfPhotoStem($turf->id, $count === 0),
+                    true
+                );
+                TurfImage::create([
+                    'turf_id' => $turf->id,
+                    'image_path' => $path,
+                    'is_primary' => $count === 0,
+                    'order' => $count,
+                ]);
+                $count++;
+            } catch (\RuntimeException $e) {
+                \Log::warning('Image upload skipped: ' . $e->getMessage());
+            }
+        }
+
+        return $count;
     }
 }

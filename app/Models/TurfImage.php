@@ -20,6 +20,24 @@ class TurfImage extends Model
         'is_primary' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (TurfImage $image) {
+            if (filled($image->image_path)) {
+                app(\App\Services\MediaService::class)->delete($image->image_path);
+            }
+        });
+    }
+
+    protected $appends = [
+        'image_url',
+    ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return app(\App\Services\MediaService::class)->url($this->image_path);
+    }
+
     public function turf()
     {
         return $this->belongsTo(Turf::class);

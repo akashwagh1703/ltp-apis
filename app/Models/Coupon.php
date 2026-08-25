@@ -19,15 +19,30 @@ class Coupon extends Model
         'usage_limit',
         'used_count',
         'valid_from',
-        'valid_until',
-        'status',
+        'valid_to',
+        'is_active',
     ];
 
     protected $casts = [
         'discount_value' => 'decimal:2',
         'min_booking_amount' => 'decimal:2',
         'max_discount' => 'decimal:2',
-        'valid_from' => 'datetime',
-        'valid_until' => 'datetime',
+        'valid_from' => 'date',
+        'valid_to' => 'date',
+        'is_active' => 'boolean',
+        'used_count' => 'integer',
+        'usage_limit' => 'integer',
     ];
+
+    protected $appends = ['valid_until'];
+
+    public function getValidUntilAttribute()
+    {
+        return $this->valid_to;
+    }
+
+    public function setValidUntilAttribute($value): void
+    {
+        $this->attributes['valid_to'] = $value;
+    }
 }

@@ -20,6 +20,12 @@ class DashboardController extends Controller
         $todayBookings = Booking::where('owner_id', $ownerId)->whereDate('booking_date', $today)->count();
         $totalRevenue = Booking::where('owner_id', $ownerId)->where('booking_status', 'completed')->sum('final_amount');
         $pendingBookings = Booking::where('owner_id', $ownerId)->where('payment_status', 'pending')->count();
+        $awaitingConfirmation = Booking::where('owner_id', $ownerId)
+            ->whereIn('booking_status', [
+                Booking::STATUS_AWAITING_CONFIRMATION,
+                Booking::STATUS_PAY_ON_ARRIVAL,
+            ])
+            ->count();
 
         // Online bookings stats
         $onlineBookings = Booking::where('owner_id', $ownerId)->where('booking_type', 'online')->count();
@@ -44,18 +50,24 @@ class DashboardController extends Controller
             ->where('payment_status', 'pending')
             ->sum('final_amount');
 
+        $owner = $request->user();
+        $owner->load('subscriptions.plan');
+
         return response()->json([
             'total_turfs' => $totalTurfs,
             'total_bookings' => $totalBookings,
             'today_bookings' => $todayBookings,
             'total_revenue' => number_format($totalRevenue, 2, '.', ''),
             'pending_bookings' => $pendingBookings,
+            'awaiting_confirmation' => $awaitingConfirmation,
             'online_bookings' => $onlineBookings,
             'online_revenue' => number_format($onlineRevenue, 2, '.', ''),
             'offline_bookings' => $offlineBookings,
             'offline_revenue' => number_format($offlineRevenue, 2, '.', ''),
             'paid_amount' => number_format($paidAmount, 2, '.', ''),
             'pending_amount' => number_format($pendingAmount, 2, '.', ''),
+            'can_accept_online_bookings' => $owner->canAcceptOnlineBookings(),
+            'plan_end_date' => $owner->currentSubscription()?->end_date?->toDateString(),
         ]);
     }
 

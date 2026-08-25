@@ -23,21 +23,18 @@ class AuthController extends Controller
     {
         $request->validate(['phone' => 'required|string|max:15']);
 
-        // Rate limiting: 3 attempts per 10 minutes
-        $key = 'otp_attempts:' . $request->phone;
-        $attempts = \Cache::get($key, 0);
-        
-        if ($attempts >= 3) {
-            return response()->json(['message' => 'Too many OTP requests. Please try after 10 minutes.'], 429);
-        }
-
         $owner = Owner::where('phone', $request->phone)->first();
         
         if (!$owner) {
             return response()->json(['message' => 'Owner not found'], 404);
         }
 
-        $otp = $this->otpService->generate($request->phone, 'login');
+        try {
+            $otp = $this->otpService->generate($request->phone, 'login');
+        } catch (\RuntimeException $e) {
+            $status = $e->getCode() === 429 ? 429 : 400;
+            return response()->json(['message' => $e->getMessage()], $status);
+        }
         
         // Try WhatsApp first, but don't block if it fails
         try {
@@ -54,8 +51,6 @@ class AuthController extends Controller
             \Log::warning('SMS OTP failed: ' . $e->getMessage());
         }
 
-        \Cache::put($key, $attempts + 1, now()->addMinutes(10));
-
         return response()->json(['message' => 'OTP sent successfully']);
     }
 
@@ -66,7 +61,14 @@ class AuthController extends Controller
             'otp' => 'required|string|size:6',
         ]);
 
-        if (!$this->otpService->verify($request->phone, $request->otp, 'login')) {
+        try {
+            $valid = $this->otpService->verify($request->phone, $request->otp, 'login');
+        } catch (\RuntimeException $e) {
+            $status = $e->getCode() === 429 ? 429 : 400;
+            return response()->json(['message' => $e->getMessage()], $status);
+        }
+
+        if (!$valid) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400);
         }
 
@@ -80,7 +82,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'owner' => $owner,
+            'owner' => (new \App\Http\Resources\OwnerResource($owner))->resolve(),
         ]);
     }
 
@@ -93,12 +95,47 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $owner = $request->user();
-        $owner->update($request->only(['name', 'email', 'profile_image']));
-        return response()->json($owner);
+
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'profile_image' => 'sometimes|nullable|string|max:500',
+            'upi_id' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/'],
+            'qr' => 'sometimes|file|max:12288',
+        ]);
+
+        $owner->fill($request->only(['name', 'email', 'profile_image']));
+
+        if ($request->filled('upi_id')) {
+            $owner->upi_id = strtolower(trim($request->input('upi_id')));
+        }
+
+        if ($request->hasFile('qr')) {
+            try {
+                $owner->upi_qr_path = $owner->storeUpiQr($request->file('qr'));
+            } catch (\RuntimeException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+        }
+
+        $owner->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => (new \App\Http\Resources\OwnerResource($owner->fresh()))->resolve(),
+            'message' => $owner->hasUpiSetup()
+                ? 'UPI saved. Players can pay you by scanning this QR.'
+                : 'Profile updated',
+        ]);
     }
 
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        $owner = $request->user();
+
+        return response()->json([
+            'success' => true,
+            'data' => (new \App\Http\Resources\OwnerResource($owner))->resolve(),
+        ]);
     }
 }

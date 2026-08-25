@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Setting;
 use App\Models\Owner;
 use App\Models\Payout;
-use Razorpay\Api\Api;
 use Illuminate\Support\Facades\Log;
 
 class RazorpayPayoutService
@@ -16,14 +15,30 @@ class RazorpayPayoutService
     public function __construct()
     {
         $this->enabled = Setting::get('razorpay_payouts_enabled', 'false') === 'true';
-        
-        if ($this->enabled) {
-            $keyId = Setting::get('razorpay_payout_key_id');
-            $keySecret = Setting::get('razorpay_payout_key_secret');
-            
-            if ($keyId && $keySecret) {
-                $this->razorpay = new Api($keyId, $keySecret);
-            }
+
+        if (!$this->enabled) {
+            return;
+        }
+
+        if (!class_exists(\Razorpay\Api\Api::class)) {
+            Log::warning('Razorpay SDK missing; RazorpayPayoutService disabled');
+            $this->enabled = false;
+            return;
+        }
+
+        $keyId = Setting::get('razorpay_payout_key_id');
+        $keySecret = Setting::get('razorpay_payout_key_secret');
+
+        if (!$keyId || !$keySecret) {
+            $this->enabled = false;
+            return;
+        }
+
+        try {
+            $this->razorpay = new \Razorpay\Api\Api($keyId, $keySecret);
+        } catch (\Throwable $e) {
+            Log::warning('Razorpay payout client could not start: ' . $e->getMessage());
+            $this->enabled = false;
         }
     }
 

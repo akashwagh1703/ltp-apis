@@ -37,6 +37,11 @@ class Player extends Authenticatable
         return $this->hasMany(Booking::class);
     }
 
+    public function favorites()
+    {
+        return $this->hasMany(PlayerFavorite::class);
+    }
+
     public function reviews()
     {
         return $this->hasMany(Review::class);

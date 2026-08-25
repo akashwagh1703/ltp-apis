@@ -32,4 +32,43 @@ class Setting extends Model
     {
         return (float) self::get('platform_commission_rate', 5.00);
     }
+
+    public static function getBookingHoldMinutes(): int
+    {
+        return (int) self::get('booking_hold_minutes', 15);
+    }
+
+    public static function getBookingConfirmGraceMinutes(): int
+    {
+        return (int) self::get('booking_confirm_grace_minutes', 120);
+    }
+
+    public static function getBookingAdvancePercent(): int
+    {
+        $value = (int) self::get('booking_advance_percent', 50);
+
+        return max(0, min(90, $value));
+    }
+
+    public static function isDefaultOtpEnabled(): bool
+    {
+        return self::get('default_otp_enabled', 'false') === 'true';
+    }
+
+    public static function platformUpiId(): ?string
+    {
+        $value = self::get('platform_upi_id', '');
+
+        return filled($value) ? $value : null;
+    }
+
+    public static function platformQrUrl(): ?string
+    {
+        $path = self::get('platform_qr_path', '');
+        if (!filled($path)) {
+            return null;
+        }
+
+        return app(\App\Services\MediaService::class)->url($path);
+    }
 }

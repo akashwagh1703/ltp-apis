@@ -1,30 +1,14 @@
 <?php
 
 return [
-
-    'paths' => [
-        'api/*',
-        'sanctum/csrf-cookie',
-    ],
-
-    'allowed_methods' => ['*'],
-
-    'allowed_origins' => [
-        'http://localhost:3011',
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'https://api.playltp.in',
-        'https://admin.playltp.in',
-        'https://playltp.in',
-    ],
-
-    'allowed_origins_patterns' => [],
-
-    'allowed_headers' => ['*'],
-
-    'exposed_headers' => [],
-
-    'max_age' => 0,
-
-    'supports_credentials' => true,
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(
+            ',',
+            (string) env(
+                'CORS_ALLOWED_ORIGINS',
+                'https://playltp.in,https://www.playltp.in,https://admin.playltp.in,https://staging.playltp.in,https://admin-staging.playltp.in,http://localhost:5173,http://127.0.0.1:5173'
+            )
+        )
+    ))),
 ];

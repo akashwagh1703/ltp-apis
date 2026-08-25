@@ -31,12 +31,20 @@ class Turf extends Model
         'uniform_price',
         'status',
         'is_featured',
+        'rejection_reason',
+        'submitted_at',
     ];
+
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'pending';
+    public const STATUS_LIVE = 'approved';
+    public const STATUS_SUSPENDED = 'suspended';
 
     protected $casts = [
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_featured' => 'boolean',
+        'submitted_at' => 'datetime',
     ];
 
     public function owner()
@@ -77,6 +85,16 @@ class Turf extends Model
     public function reviews()
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function favorites()
+    {
+        return $this->hasMany(PlayerFavorite::class);
+    }
+
+    public function approvedReviews()
+    {
+        return $this->reviews()->where('status', 'approved');
     }
 
     public function updateRequests()

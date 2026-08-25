@@ -28,7 +28,12 @@ class BookingController extends Controller
             $query = Booking::with(['turf', 'player', 'payment'])
                 ->where('owner_id', $request->user()->id);
 
-            if ($request->status) {
+            if ($request->status === 'needs_confirmation') {
+                $query->whereIn('booking_status', [
+                    Booking::STATUS_AWAITING_CONFIRMATION,
+                    Booking::STATUS_PAY_ON_ARRIVAL,
+                ]);
+            } elseif ($request->status) {
                 $query->where('booking_status', $request->status);
             }
 
@@ -222,6 +227,12 @@ class BookingController extends Controller
             'today_bookings' => Booking::where('owner_id', $ownerId)->whereDate('booking_date', today())->count(),
             'total_revenue' => Booking::where('owner_id', $ownerId)->where('booking_status', 'completed')->sum('final_amount'),
             'pending_bookings' => Booking::where('owner_id', $ownerId)->where('payment_status', 'pending')->count(),
+            'awaiting_confirmation' => Booking::where('owner_id', $ownerId)
+                ->whereIn('booking_status', [
+                    Booking::STATUS_AWAITING_CONFIRMATION,
+                    Booking::STATUS_PAY_ON_ARRIVAL,
+                ])
+                ->count(),
         ]);
     }
 
@@ -345,7 +356,84 @@ class BookingController extends Controller
 
     public function confirmPayment(Request $request, $id)
     {
-        $booking = Booking::where('owner_id', auth()->id())->findOrFail($id);
+        $booking = Booking::with(['turf', 'player'])
+            ->where('owner_id', auth()->id())
+            ->findOrFail($id);
+
+        if ($booking->booking_status === Booking::STATUS_EXPIRED) {
+            return response()->json(['message' => 'This booking has expired'], 400);
+        }
+
+        if ($booking->needsOwnerPaymentConfirm()) {
+            if ($booking->isAdvancePay()) {
+                $due = $booking->dueNowAmount();
+                $rest = round(max(0, (float) $booking->final_amount - $due), 2);
+                $booking->update([
+                    'booking_status' => Booking::STATUS_CONFIRMED,
+                    'payment_status' => 'partial',
+                    'paid_amount' => $due,
+                    'pending_amount' => $rest,
+                ]);
+            } else {
+                $booking->update([
+                    'booking_status' => Booking::STATUS_CONFIRMED,
+                    'payment_status' => 'success',
+                    'paid_amount' => $booking->final_amount,
+                    'pending_amount' => 0,
+                ]);
+            }
+
+            $booking->refresh();
+            $booking->load(['turf', 'player', 'owner']);
+
+            try {
+                $this->fcmService->sendBookingNotification($booking, false);
+            } catch (\Exception $e) {
+                \Log::warning('FCM confirm notification failed: ' . $e->getMessage());
+            }
+
+            try {
+                if ($booking->player_phone && class_exists('\App\Services\WhatsAppService')) {
+                    $whatsappService = app(\App\Services\WhatsAppService::class);
+                    $whatsappService->sendBookingConfirmation(
+                        $booking->player_phone,
+                        [
+                            'booking_number' => $booking->booking_number,
+                            'turf_name' => $booking->turf->name ?? '',
+                            'booking_date' => $booking->booking_date->format('d M Y'),
+                            'start_time' => $booking->start_time,
+                            'end_time' => $booking->end_time,
+                            'final_amount' => $booking->final_amount,
+                        ],
+                        true
+                    );
+                }
+            } catch (\Exception $e) {
+                \Log::warning('WhatsApp confirm notification failed: ' . $e->getMessage());
+            }
+
+            $amount = $booking->isAdvancePay()
+                ? $booking->dueNowAmount()
+                : (float) $booking->final_amount;
+            $remaining = (float) $booking->pending_amount;
+            $message = $remaining > 0
+                ? "Received ₹{$amount} advance from {$booking->player_name}. ₹{$remaining} due at the turf."
+                : "Received ₹{$amount} from {$booking->player_name}";
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'payment_details' => [
+                    'previous_paid_amount' => 0,
+                    'additional_amount_paid' => $amount,
+                    'total_paid_amount' => (float) $booking->paid_amount,
+                    'remaining_amount' => $remaining,
+                    'total_booking_amount' => (float) $booking->final_amount,
+                    'payment_status' => $booking->payment_status,
+                ],
+                'booking' => new BookingResource($booking),
+            ]);
+        }
 
         if ($booking->payment_status === 'success') {
             return response()->json(['message' => 'Payment already confirmed'], 400);
@@ -364,7 +452,7 @@ class BookingController extends Controller
             $additionalAmount = $validated['amount'] ?? $booking->pending_amount;
             $booking->paid_amount += $additionalAmount;
             $booking->pending_amount -= $additionalAmount;
-            
+
             if ($booking->pending_amount <= 0) {
                 $booking->payment_status = 'success';
                 $booking->pending_amount = 0;
@@ -390,6 +478,45 @@ class BookingController extends Controller
                 'payment_status' => $booking->payment_status,
             ],
             'booking' => new BookingResource($booking->load('turf'))
+        ]);
+    }
+
+    public function rejectPayment(Request $request, $id)
+    {
+        $booking = Booking::with(['turf', 'player'])
+            ->where('owner_id', auth()->id())
+            ->findOrFail($id);
+
+        if (!$booking->needsOwnerPaymentConfirm()) {
+            return response()->json(['message' => 'This booking is not waiting for payment confirmation'], 400);
+        }
+
+        $reason = $request->input('reason');
+
+        try {
+            if ($booking->player_id) {
+                $this->fcmService->sendToUserAsync(
+                    $booking->player_id,
+                    'player',
+                    'Payment not received',
+                    $reason
+                        ? "{$booking->turf->name} has not received ₹{$booking->final_amount}. {$reason}"
+                        : "{$booking->turf->name} has not received ₹{$booking->final_amount} yet. Pay again and tap I have paid.",
+                    [
+                        'type' => 'payment',
+                        'booking_id' => (string) $booking->id,
+                    ],
+                    'payment'
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('FCM reject-payment notification failed: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Told the player you have not received payment yet',
+            'booking' => new BookingResource($booking),
         ]);
     }
 }

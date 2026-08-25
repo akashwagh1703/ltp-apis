@@ -64,7 +64,7 @@ class SettingController extends Controller
         try {
             return response()->json([
                 'sms_enabled' => Setting::get('sms_enabled', 'false') === 'true',
-                'default_otp_enabled' => Setting::get('default_otp_enabled', 'true') === 'true',
+                'default_otp_enabled' => Setting::isDefaultOtpEnabled(),
                 'default_otp' => Setting::get('default_otp', '999999'),
                 'msg91_auth_key' => Setting::get('msg91_auth_key', ''),
                 'msg91_sender_id' => Setting::get('msg91_sender_id', 'LTPLAY'),
@@ -77,7 +77,7 @@ class SettingController extends Controller
             // Return default values if settings don't exist yet
             return response()->json([
                 'sms_enabled' => false,
-                'default_otp_enabled' => true,
+                'default_otp_enabled' => false,
                 'default_otp' => '999999',
                 'msg91_auth_key' => '',
                 'msg91_sender_id' => 'LTPLAY',
@@ -198,5 +198,50 @@ class SettingController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function getPlatformUpi()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'upi_id' => Setting::platformUpiId(),
+                'qr_url' => Setting::platformQrUrl(),
+                'qr_path' => Setting::get('platform_qr_path', ''),
+            ],
+        ]);
+    }
+
+    public function updatePlatformUpi(Request $request)
+    {
+        $validated = $request->validate([
+            'upi_id' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/'],
+            'qr' => 'sometimes|file|max:12288',
+        ]);
+
+        if ($request->filled('upi_id')) {
+            Setting::set('platform_upi_id', strtolower(trim($request->input('upi_id'))), 'text');
+        }
+
+        if ($request->hasFile('qr')) {
+            try {
+                $media = app(\App\Services\MediaService::class);
+                $old = Setting::get('platform_qr_path', '');
+                $media->delete($old);
+                $path = $media->putUploadedFile($request->file('qr'), $media->platformQrStem(), false);
+                Setting::set('platform_qr_path', $path, 'text');
+            } catch (\RuntimeException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Platform UPI saved',
+            'data' => [
+                'upi_id' => Setting::platformUpiId(),
+                'qr_url' => Setting::platformQrUrl(),
+            ],
+        ]);
     }
 }

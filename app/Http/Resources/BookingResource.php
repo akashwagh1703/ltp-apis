@@ -27,6 +27,7 @@ class BookingResource extends JsonResource
             'slot_duration' => $this->slot_duration ?? 60,
             'amount' => (float) $this->amount,
             'discount_amount' => (float) ($this->discount_amount ?? 0),
+            'coupon_id' => $this->coupon_id,
             'final_amount' => (float) ($this->final_amount ?? $this->amount),
             'paid_amount' => (float) ($this->paid_amount ?? 0),
             'pending_amount' => (float) ($this->pending_amount ?? 0),
@@ -36,6 +37,12 @@ class BookingResource extends JsonResource
             'payment_mode' => $this->payment_mode ?? 'online',
             'status' => $this->booking_status,
             'payment_status' => $this->payment_status,
+            'marked_paid_at' => $this->marked_paid_at,
+            'payment_hold_expires_at' => $this->payment_hold_expires_at,
+            'payment_instructions' => $this->when(
+                $this->needsOwnerPaymentConfirm(),
+                fn () => $this->paymentInstructions()
+            ),
             'player_name' => $this->player_name,
             'player_phone' => $this->player_phone,
             'player_email' => $this->player_email,

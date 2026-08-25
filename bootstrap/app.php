@@ -1,8 +1,12 @@
 <?php
 
+use App\Services\ErrorReporter;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -10,11 +14,31 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (Schedule $schedule) {
+        $log = storage_path('logs/scheduler.log');
+        $schedule->command('slots:release-locks')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo($log);
+        $schedule->command('bookings:complete-expired')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo($log);
+        $schedule->command('bookings:expire-unconfirmed')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo($log);
+        $schedule->command('backup:database')
+            ->dailyAt('02:30')
+            ->withoutOverlapping()
+            ->appendOutputTo($log);
+    })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(prepend: [
             \App\Http\Middleware\Cors::class,
         ]);
-        
+        $middleware->throttleApi();
+
         $middleware->alias([
             'admin.auth' => \App\Http\Middleware\AdminAuth::class,
             'player.auth' => \App\Http\Middleware\PlayerAuth::class,
@@ -24,10 +48,33 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        $exceptions->respond(function (\Symfony\Component\HttpFoundation\Response $response) {
-            $response->headers->set('Access-Control-Allow-Origin', '*');
-            $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+        $exceptions->reportable(function (\Throwable $e) {
+            app(ErrorReporter::class)->report($e);
+        });
+
+        $exceptions->shouldRenderJsonWhen(function (Request $request) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
+
+        $exceptions->respond(function (Response $response, \Throwable $e, Request $request) {
+            $origin = \App\Support\CorsOrigins::headerFor($request->headers->get('Origin'));
+            if ($origin) {
+                $response->headers->set('Access-Control-Allow-Origin', $origin);
+                $response->headers->set('Vary', 'Origin');
+            }
+
+            if ($request->is('api/*') && !config('app.debug') && $response->getStatusCode() >= 500) {
+                $payload = json_encode([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'server_error',
+                        'message' => 'Something went wrong. Try again.',
+                    ],
+                ]);
+                $response->setContent($payload);
+                $response->headers->set('Content-Type', 'application/json');
+            }
+
             return $response;
         });
     })->create();

@@ -20,7 +20,7 @@ class SettingSeeder extends Seeder
             
             // SMS & OTP Settings
             ['key' => 'sms_enabled', 'value' => 'false', 'type' => 'boolean', 'description' => 'Enable/Disable SMS notifications'],
-            ['key' => 'default_otp_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable default OTP (999999) for testing'],
+            ['key' => 'default_otp_enabled', 'value' => 'false', 'type' => 'boolean', 'description' => 'Enable default OTP (999999) for testing — must stay false in production'],
             ['key' => 'default_otp', 'value' => '999999', 'type' => 'string', 'description' => 'Default OTP for testing'],
             
             // MSG91 Settings
@@ -42,6 +42,14 @@ class SettingSeeder extends Seeder
             ['key' => 'razorpay_payouts_enabled', 'value' => 'false', 'type' => 'string', 'description' => 'Enable/Disable Razorpay payouts'],
             ['key' => 'razorpay_payout_key_id', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Payout Key ID'],
             ['key' => 'razorpay_payout_key_secret', 'value' => '', 'type' => 'string', 'description' => 'Razorpay Payout Key Secret'],
+
+            // v3 QR money (no payment gateway)
+            ['key' => 'platform_upi_id', 'value' => '', 'type' => 'text', 'description' => 'LTP admin UPI ID for owner platform fees'],
+            ['key' => 'platform_qr_path', 'value' => '', 'type' => 'text', 'description' => 'Public-disk path to LTP UPI QR image'],
+            ['key' => 'booking_hold_minutes', 'value' => '15', 'type' => 'number', 'description' => 'Minutes to hold a slot before player marks paid'],
+            ['key' => 'booking_confirm_grace_minutes', 'value' => '120', 'type' => 'number', 'description' => 'Minutes owner has to confirm after player marks paid'],
+            ['key' => 'subscription_overdue_hide_days', 'value' => '14', 'type' => 'number', 'description' => 'Days after plan expiry before turf is hidden from player search'],
+            ['key' => 'booking_advance_percent', 'value' => '50', 'type' => 'number', 'description' => 'Percent due now when player chooses Pay part now. 0 hides the option.'],
         ];
 
         foreach ($settings as $setting) {

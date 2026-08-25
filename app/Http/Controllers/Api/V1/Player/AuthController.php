@@ -28,15 +28,13 @@ class AuthController extends Controller
                 ->header('Access-Control-Allow-Origin', '*');
         }
 
-        $key = 'otp_attempts:' . $request->phone;
-        $attempts = \Cache::get($key, 0);
-        
-        if ($attempts >= 3) {
-            return response()->json(['message' => 'Too many OTP requests. Please try after 10 minutes.'], 429)
+        try {
+            $otp = $this->otpService->generate($request->phone, 'login');
+        } catch (\RuntimeException $e) {
+            $status = $e->getCode() === 429 ? 429 : 400;
+            return response()->json(['message' => $e->getMessage()], $status)
                 ->header('Access-Control-Allow-Origin', '*');
         }
-
-        $otp = $this->otpService->generate($request->phone, 'login');
         
         // Try WhatsApp first, but don't block if it fails
         try {
@@ -55,8 +53,6 @@ class AuthController extends Controller
             \Log::warning('SMS OTP failed: ' . $e->getMessage());
         }
 
-        \Cache::put($key, $attempts + 1, now()->addMinutes(10));
-
         return response()->json(['message' => 'OTP sent successfully']);
     }
 
@@ -72,7 +68,15 @@ class AuthController extends Controller
                 ->header('Access-Control-Allow-Origin', '*');
         }
 
-        if (!$this->otpService->verify($request->phone, $request->otp, 'login')) {
+        try {
+            $valid = $this->otpService->verify($request->phone, $request->otp, 'login');
+        } catch (\RuntimeException $e) {
+            $status = $e->getCode() === 429 ? 429 : 400;
+            return response()->json(['message' => $e->getMessage()], $status)
+                ->header('Access-Control-Allow-Origin', '*');
+        }
+
+        if (!$valid) {
             return response()->json(['message' => 'Invalid or expired OTP'], 400)
                 ->header('Access-Control-Allow-Origin', '*');
         }

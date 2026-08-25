@@ -80,16 +80,16 @@ class DashboardController extends Controller
         try {
             $actions = [];
             
-            // Check for pending payouts
-            $pendingPayouts = \App\Models\Payout::whereIn('status', ['pending', 'processed'])->count();
-            if ($pendingPayouts > 0) {
+            // Check for pending owner fee payments
+            $pendingFees = \App\Models\SubscriptionPayment::where('status', 'awaiting_admin')->count();
+            if ($pendingFees > 0) {
                 $actions[] = [
                     'id' => 1,
-                    'type' => 'payout',
-                    'title' => 'Pending Payouts',
-                    'description' => "{$pendingPayouts} payouts need attention",
+                    'type' => 'fee',
+                    'title' => 'Pay LTP fees',
+                    'description' => "{$pendingFees} owner fee payment(s) to confirm",
                     'priority' => 'high',
-                    'link' => '/payouts'
+                    'link' => '/subscriptions'
                 ];
             }
             
@@ -108,6 +108,18 @@ class DashboardController extends Controller
                 }
             }
             
+            $pendingListings = \App\Models\Turf::where('status', 'pending')->count();
+            if ($pendingListings > 0) {
+                $actions[] = [
+                    'id' => 3,
+                    'type' => 'listing',
+                    'title' => 'Turf listings',
+                    'description' => "{$pendingListings} listing(s) to review",
+                    'priority' => 'high',
+                    'link' => '/turfs'
+                ];
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $actions

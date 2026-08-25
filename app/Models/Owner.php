@@ -25,11 +25,19 @@ class Owner extends Authenticatable
         'status',
         'commission_rate',
         'fcm_token',
+        'upi_id',
+        'upi_qr_path',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'upi_qr_path',
+    ];
+
+    protected $appends = [
+        'has_upi',
+        'qr_url',
     ];
 
     protected $casts = [
@@ -74,5 +82,132 @@ class Owner extends Authenticatable
     {
         // Use owner-specific rate if set, otherwise use platform default
         return $this->commission_rate ?? Setting::getCommissionRate();
+    }
+
+    public function subscriptionPayments()
+    {
+        return $this->hasMany(SubscriptionPayment::class);
+    }
+
+    public function hasUpiSetup(): bool
+    {
+        return filled($this->upi_id) && filled($this->upi_qr_path);
+    }
+
+    public function getHasUpiAttribute(): bool
+    {
+        return $this->hasUpiSetup();
+    }
+
+    public function upiQrUrl(): ?string
+    {
+        if (!filled($this->upi_qr_path)) {
+            return null;
+        }
+
+        return app(\App\Services\MediaService::class)->url($this->upi_qr_path);
+    }
+
+    public function getQrUrlAttribute(): ?string
+    {
+        return $this->upiQrUrl();
+    }
+
+    public function scopeWithUpiQr($query)
+    {
+        return $query->whereNotNull('upi_id')
+            ->where('upi_id', '!=', '')
+            ->whereNotNull('upi_qr_path')
+            ->where('upi_qr_path', '!=', '');
+    }
+
+    public function currentSubscription(): ?Subscription
+    {
+        if ($this->relationLoaded('subscriptions')) {
+            return $this->subscriptions
+                ->sortByDesc(fn (Subscription $sub) => optional($sub->end_date)->timestamp ?? 0)
+                ->first();
+        }
+
+        return $this->subscriptions()->with('plan')->orderByDesc('end_date')->first();
+    }
+
+    public function canAcceptOnlineBookings(): bool
+    {
+        $sub = $this->currentSubscription();
+        if (!$sub || !$sub->end_date) {
+            return false;
+        }
+
+        return $sub->end_date->copy()->endOfDay()->gte(now());
+    }
+
+    public function isVisibleInPlayerSearch(): bool
+    {
+        $sub = $this->currentSubscription();
+        if (!$sub || !$sub->end_date) {
+            return false;
+        }
+
+        return $sub->end_date->copy()
+            ->addDays(Setting::getSubscriptionOverdueHideDays())
+            ->endOfDay()
+            ->gte(now());
+    }
+
+    public function scopeVisibleInPlayerSearch($query)
+    {
+        $cutoff = now()->subDays(Setting::getSubscriptionOverdueHideDays())->toDateString();
+
+        return $query->whereHas('subscriptions', function ($q) use ($cutoff) {
+            $q->whereDate('end_date', '>=', $cutoff);
+        });
+    }
+
+    public function applySubscriptionPayment(SubscriptionPayment $payment): Subscription
+    {
+        $plan = $payment->plan ?? $payment->load('plan')->plan;
+        if (!$plan) {
+            throw new \RuntimeException('Subscription payment is missing a plan.');
+        }
+
+        $current = $this->currentSubscription();
+        $stillValid = $current && $current->end_date && $current->end_date->copy()->endOfDay()->gte(now());
+
+        if ($current && $stillValid) {
+            $current->update([
+                'plan_id' => $plan->id,
+                'end_date' => $current->end_date->copy()->addDays($plan->duration_days),
+                'status' => 'active',
+                'amount_paid' => $payment->amount,
+                'payment_method' => 'upi',
+                'transaction_id' => 'fee-' . $payment->id,
+            ]);
+
+            return $current->fresh(['plan']);
+        }
+
+        if ($current) {
+            $current->update(['status' => 'expired']);
+        }
+
+        return Subscription::create([
+            'owner_id' => $this->id,
+            'plan_id' => $plan->id,
+            'start_date' => now(),
+            'end_date' => now()->addDays($plan->duration_days),
+            'status' => 'active',
+            'amount_paid' => $payment->amount,
+            'payment_method' => 'upi',
+            'transaction_id' => 'fee-' . $payment->id,
+        ])->load('plan');
+    }
+
+    public function storeUpiQr($file): string
+    {
+        $media = app(\App\Services\MediaService::class);
+        $media->delete($this->upi_qr_path);
+
+        return $media->putUploadedFile($file, $media->ownerQrStem($this->id), false);
     }
 }

@@ -235,14 +235,35 @@ class FcmService
         );
     }
 
+    public function sendFeeConfirmedNotification($ownerId, $endDate = null, $async = true)
+    {
+        $until = $endDate ? (is_string($endDate) ? $endDate : $endDate->format('d M Y')) : null;
+        $body = $until
+            ? "Your LTP plan is active until {$until}."
+            : 'Your LTP fee was received. The plan is active.';
+
+        $method = $async ? 'sendToUserAsync' : 'sendToUser';
+
+        return $this->$method(
+            $ownerId,
+            'owner',
+            'LTP fee received',
+            $body,
+            [
+                'type' => 'subscription',
+            ],
+            'subscription'
+        );
+    }
+
     public function sendPaymentNotification($booking, $async = true)
     {
         $method = $async ? 'sendToUserAsync' : 'sendToUser';
         return $this->$method(
             $booking->owner_id,
             'owner',
-            'Payment Received',
-            "Payment of ₹{$booking->paid_amount} received for booking #{$booking->booking_number}",
+            'Player marked paid',
+            "{$booking->player_name} says they paid ₹{$booking->final_amount} for #{$booking->booking_number}. Tap Received if the money arrived.",
             [
                 'type' => 'payment',
                 'booking_id' => (string)$booking->id,

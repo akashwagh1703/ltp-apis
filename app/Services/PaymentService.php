@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Setting;
 use App\Models\Payment;
-use Razorpay\Api\Api;
 use Illuminate\Support\Facades\Log;
 
 class PaymentService
@@ -15,16 +14,30 @@ class PaymentService
     public function __construct()
     {
         $this->enabled = Setting::get('razorpay_enabled', 'false') === 'true';
-        
-        if ($this->enabled) {
-            $keyId = Setting::get('razorpay_key_id', '');
-            $keySecret = Setting::get('razorpay_key_secret', '');
-            
-            if (!empty(trim($keyId)) && !empty(trim($keySecret))) {
-                $this->razorpay = new Api($keyId, $keySecret);
-            } else {
-                $this->enabled = false; // Disable if keys are empty
-            }
+
+        if (!$this->enabled) {
+            return;
+        }
+
+        if (!class_exists(\Razorpay\Api\Api::class)) {
+            Log::warning('Razorpay SDK missing; PaymentService disabled');
+            $this->enabled = false;
+            return;
+        }
+
+        $keyId = Setting::get('razorpay_key_id', '');
+        $keySecret = Setting::get('razorpay_key_secret', '');
+
+        if (empty(trim($keyId)) || empty(trim($keySecret))) {
+            $this->enabled = false;
+            return;
+        }
+
+        try {
+            $this->razorpay = new \Razorpay\Api\Api($keyId, $keySecret);
+        } catch (\Throwable $e) {
+            Log::warning('Razorpay client could not start: ' . $e->getMessage());
+            $this->enabled = false;
         }
     }
 
