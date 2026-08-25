@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Owner;
 use App\Services\OtpService;
 use App\Services\SmsService;
+use App\Support\UploadedFiles;
 use Illuminate\Http\Request;
 
 class AuthController extends Controller
@@ -155,8 +156,15 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $file = UploadedFiles::first($request, 'qr') ?: UploadedFiles::first($request);
         $needsQr = !filled($owner->upi_qr_path);
-        if ($needsQr && !$request->hasFile('qr')) {
+        if ($needsQr && !$file) {
+            \Log::warning('Owner UPI QR missing', [
+                'content_type' => $request->header('Content-Type'),
+                'keys' => array_keys($request->all()),
+                'files' => array_keys($request->allFiles()),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Upload a JPG or PNG photo of your UPI QR. The photo did not reach the server.',
@@ -166,9 +174,9 @@ class AuthController extends Controller
 
         $owner->upi_id = $upi;
 
-        if ($request->hasFile('qr')) {
+        if ($file) {
             try {
-                $owner->upi_qr_path = $owner->storeUpiQr($request->file('qr'));
+                $owner->upi_qr_path = $owner->storeUpiQr($file);
             } catch (\RuntimeException $e) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Owner;
 use App\Models\Setting;
+use App\Support\UploadedFiles;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -215,20 +217,28 @@ class SettingController extends Controller
     public function updatePlatformUpi(Request $request)
     {
         $validated = $request->validate([
-            'upi_id' => ['sometimes', 'nullable', 'string', 'max:80', 'regex:/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/'],
+            'upi_id' => 'sometimes|nullable|string|max:80',
             'qr' => 'sometimes|file|max:12288',
         ]);
 
         if ($request->filled('upi_id')) {
-            Setting::set('platform_upi_id', strtolower(trim($request->input('upi_id'))), 'text');
+            $upi = Owner::normalizeUpiId($request->input('upi_id'));
+            if (!Owner::isValidUpiId($upi)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Enter a valid UPI ID, like name@oksbi or 9876543210@ybl.',
+                ], 422);
+            }
+            Setting::set('platform_upi_id', $upi, 'text');
         }
 
-        if ($request->hasFile('qr')) {
+        $file = UploadedFiles::first($request, 'qr') ?: UploadedFiles::first($request);
+        if ($file) {
             try {
                 $media = app(\App\Services\MediaService::class);
                 $old = Setting::get('platform_qr_path', '');
                 $media->delete($old);
-                $path = $media->putUploadedFile($request->file('qr'), $media->platformQrStem(), false);
+                $path = $media->putUploadedFile($file, $media->platformQrStem(), false);
                 Setting::set('platform_qr_path', $path, 'text');
             } catch (\RuntimeException $e) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);

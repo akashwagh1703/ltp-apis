@@ -9,6 +9,7 @@ return [
     | Set FILESYSTEM_MEDIA_DISK=minio after buckets exist; otherwise public disk.
     */
     'media_disk' => env('FILESYSTEM_MEDIA_DISK', 'public'),
+    'media_prefix' => env('MINIO_PREFIX', 'ltp'),
 
     'disks' => [
 
@@ -34,9 +35,13 @@ return [
             'region' => env('MINIO_REGION', 'us-east-1'),
             'bucket' => env('MINIO_BUCKET', 'ltp-media'),
             'endpoint' => env('MINIO_ENDPOINT'),
-            'use_path_style_endpoint' => env('MINIO_USE_PATH_STYLE', true),
+            'use_path_style_endpoint' => filter_var(
+                env('MINIO_USE_PATH_STYLE', env('MINIO_FORCE_PATH_STYLE', true)),
+                FILTER_VALIDATE_BOOLEAN
+            ),
             'url' => env('MINIO_URL'),
-            'throw' => false,
+            'visibility' => 'public',
+            'throw' => true,
         ],
 
         'minio_private' => [
@@ -44,10 +49,13 @@ return [
             'key' => env('MINIO_ACCESS_KEY', env('AWS_ACCESS_KEY_ID')),
             'secret' => env('MINIO_SECRET_KEY', env('AWS_SECRET_ACCESS_KEY')),
             'region' => env('MINIO_REGION', 'us-east-1'),
-            'bucket' => env('MINIO_PRIVATE_BUCKET', 'ltp-private'),
+            'bucket' => env('MINIO_PRIVATE_BUCKET', env('MINIO_BUCKET', 'ltp-private')),
             'endpoint' => env('MINIO_ENDPOINT'),
-            'use_path_style_endpoint' => env('MINIO_USE_PATH_STYLE', true),
-            'throw' => false,
+            'use_path_style_endpoint' => filter_var(
+                env('MINIO_USE_PATH_STYLE', env('MINIO_FORCE_PATH_STYLE', true)),
+                FILTER_VALIDATE_BOOLEAN
+            ),
+            'throw' => true,
         ],
 
         's3' => [

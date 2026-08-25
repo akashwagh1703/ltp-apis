@@ -47,23 +47,23 @@ class MediaService
         $uuid = (string) Str::uuid();
 
         return $cover
-            ? "turfs/{$turfId}/cover/{$uuid}"
-            : "turfs/{$turfId}/{$uuid}";
+            ? $this->keyPrefix() . "turfs/{$turfId}/cover/{$uuid}"
+            : $this->keyPrefix() . "turfs/{$turfId}/{$uuid}";
     }
 
     public function ownerQrStem(int $ownerId): string
     {
-        return "owners/{$ownerId}/upi-qr";
+        return $this->keyPrefix() . "owners/{$ownerId}/upi-qr";
     }
 
     public function platformQrStem(): string
     {
-        return 'platform/upi-qr';
+        return $this->keyPrefix() . 'platform/upi-qr';
     }
 
     public function tmpStem(string $actor, int $actorId): string
     {
-        return "tmp/{$actor}/{$actorId}/" . Str::uuid();
+        return $this->keyPrefix() . "tmp/{$actor}/{$actorId}/" . Str::uuid();
     }
 
     public function thumbKey(string $key): string
@@ -73,12 +73,35 @@ class MediaService
 
     public function putUploadedFile(UploadedFile $file, string $stem, bool $thumb = true): string
     {
-        $path = $file->getRealPath();
-        if (!$path || !is_readable($path)) {
-            throw new RuntimeException('Could not read the uploaded file.');
+        $bytes = $this->readUploadedBytes($file);
+
+        return $this->putBytes($bytes, strlen($bytes), $stem, $thumb);
+    }
+
+    protected function readUploadedBytes(UploadedFile $file): string
+    {
+        if (!$file->isValid()) {
+            throw new RuntimeException('The photo did not upload completely. Try a smaller JPG or PNG.');
         }
 
-        return $this->putBytes((string) file_get_contents($path), $file->getSize() ?: 0, $stem, $thumb);
+        try {
+            $bytes = $file->getContent();
+        } catch (\Throwable) {
+            $bytes = false;
+        }
+
+        if ($bytes === false || $bytes === '') {
+            $path = $file->getPathname() ?: $file->getRealPath();
+            if ($path && is_readable($path)) {
+                $bytes = (string) file_get_contents($path);
+            }
+        }
+
+        if (!is_string($bytes) || $bytes === '') {
+            throw new RuntimeException('Could not read the uploaded photo. Try another JPG or PNG.');
+        }
+
+        return $bytes;
     }
 
     public function putBytes(string $bytes, int $reportedSize, string $stem, bool $thumb = true): string
@@ -182,17 +205,49 @@ class MediaService
 
     public function assertTmpKey(string $key, string $actor, int $actorId): void
     {
-        $prefix = "tmp/{$actor}/{$actorId}/";
+        $prefix = $this->keyPrefix() . "tmp/{$actor}/{$actorId}/";
         if (!str_starts_with($key, $prefix) || str_contains($key, '..')) {
             throw new RuntimeException('Invalid upload key.');
         }
     }
 
+    protected function keyPrefix(): string
+    {
+        $prefix = trim((string) config('filesystems.media_prefix', 'ltp'), '/');
+
+        return $prefix === '' ? '' : $prefix . '/';
+    }
+
     protected function write(string $key, string $body): void
     {
-        $ok = $this->disk()->put($key, $body);
+        try {
+            $options = $this->usingObjectStore() ? ['visibility' => 'public'] : [];
+            $ok = $this->disk()->put($key, $body, $options);
+        } catch (\Throwable $e) {
+            \Log::error('Media write failed', [
+                'disk' => $this->diskName(),
+                'key' => $key,
+                'error' => $e->getMessage(),
+            ]);
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'Failed to connect') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection refused')) {
+                throw new RuntimeException('Could not reach MinIO. Check MINIO_ENDPOINT.');
+            }
+            if (str_contains($msg, 'AccessDenied') || str_contains($msg, 'InvalidAccessKeyId') || str_contains($msg, 'SignatureDoesNotMatch') || str_contains($msg, '403')) {
+                throw new RuntimeException('MinIO rejected the upload. Check keys and bucket.');
+            }
+            if (str_contains($msg, 'NoSuchBucket')) {
+                throw new RuntimeException('MinIO bucket not found. Create bucket playltp or set MINIO_BUCKET.');
+            }
+            throw new RuntimeException('Could not store the photo. Try a JPG or PNG under 12MB.');
+        }
+
         if (!$ok) {
-            throw new RuntimeException('Could not store the file.');
+            \Log::error('Media write returned false', [
+                'disk' => $this->diskName(),
+                'key' => $key,
+            ]);
+            throw new RuntimeException('Could not store the photo. Try a JPG or PNG under 12MB.');
         }
     }
 
@@ -210,14 +265,17 @@ class MediaService
 
     protected function isObjectKey(string $key): bool
     {
-        if (str_starts_with($key, 'tmp/')) {
+        $prefix = trim((string) config('filesystems.media_prefix', 'ltp'), '/');
+        $tmp = ($prefix === '' ? 'tmp/' : $prefix . '/tmp/');
+        if (str_starts_with($key, $tmp) || str_starts_with($key, 'tmp/')) {
             return false;
         }
 
         $canonical = preg_replace('/-thumb(\.[a-z0-9]+)$/i', '$1', $key);
+        $optionalPrefix = $prefix === '' ? '' : '(?:' . preg_quote($prefix, '#') . '/)?';
 
         return (bool) preg_match(
-            '#^(turfs/\d+/(cover/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|owners/\d+/upi-qr|platform/upi-qr)\.(webp|jpg|jpeg|png)$#i',
+            '#^' . $optionalPrefix . '(turfs/\d+/(cover/)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|owners/\d+/upi-qr|platform/upi-qr)\.(webp|jpg|jpeg|png)$#i',
             $canonical
         );
     }

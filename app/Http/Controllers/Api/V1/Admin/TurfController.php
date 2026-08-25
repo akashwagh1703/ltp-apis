@@ -10,6 +10,7 @@ use App\Models\Turf;
 use App\Models\TurfImage;
 use App\Models\TurfAmenity;
 use App\Models\TurfPricing;
+use App\Support\UploadedFiles;
 use Illuminate\Http\Request;
 
 class TurfController extends Controller
@@ -64,9 +65,7 @@ class TurfController extends Controller
         
         $turf = Turf::create($data);
 
-        if ($request->hasFile('images')) {
-            $this->storeUploadedImages($turf, $request->file('images'));
-        }
+        $this->storeUploadedImages($turf, UploadedFiles::all($request));
 
         // Handle amenities (JSON string from FormData)
         if ($request->amenities) {
@@ -150,9 +149,10 @@ class TurfController extends Controller
         
         $turf->update($data);
 
-        if ($request->hasFile('images')) {
+        $uploaded = UploadedFiles::all($request);
+        if ($uploaded) {
             $old = $turf->images()->get();
-            $added = $this->storeUploadedImages($turf, $request->file('images'));
+            $added = $this->storeUploadedImages($turf, $uploaded);
             if ($added > 0) {
                 $old->each->delete();
             }

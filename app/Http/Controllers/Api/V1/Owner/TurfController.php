@@ -9,6 +9,7 @@ use App\Models\Turf;
 use App\Models\TurfImage;
 use App\Models\TurfPricing;
 use App\Models\TurfUpdateRequest;
+use App\Support\UploadedFiles;
 use Illuminate\Http\Request;
 
 class TurfController extends Controller
@@ -196,10 +197,22 @@ class TurfController extends Controller
     public function uploadImage(Request $request, $id)
     {
         $turf = $this->ownedTurf($id, ['images']);
+        $file = UploadedFiles::first($request, 'photo')
+            ?: UploadedFiles::first($request, 'image')
+            ?: UploadedFiles::first($request);
 
-        $request->validate([
-            'photo' => 'required|file|max:12288',
-        ]);
+        if (!$file) {
+            \Log::warning('Owner turf photo missing', [
+                'content_type' => $request->header('Content-Type'),
+                'keys' => array_keys($request->all()),
+                'files' => array_keys($request->allFiles()),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Photo did not reach the server. Use a JPG or PNG from your gallery.',
+            ], 422);
+        }
 
         if ($turf->images->count() >= 9) {
             return response()->json([
@@ -212,7 +225,7 @@ class TurfController extends Controller
             $media = app(\App\Services\MediaService::class);
             $cover = $turf->images->count() === 0;
             $path = $media->putUploadedFile(
-                $request->file('photo'),
+                $file,
                 $media->turfPhotoStem($turf->id, $cover),
                 true
             );
