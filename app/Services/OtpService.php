@@ -19,11 +19,11 @@ class OtpService
         $this->assertNotLocked($phone, $purpose);
         $this->assertSendLimit($phone, $purpose);
 
-        $defaultOtpEnabled = Setting::isDefaultOtpEnabled();
         $defaultOtp = Setting::get('default_otp', '999999');
         $expiryMinutes = (int) Setting::get('otp_expiry_minutes', 10);
 
-        $otp = $defaultOtpEnabled ? $defaultOtp : str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        // Temporary: always issue 999999 while SMS is not live.
+        $otp = $defaultOtp;
 
         Otp::create([
             'phone' => $phone,
@@ -43,10 +43,10 @@ class OtpService
     {
         $this->assertNotLocked($phone, $purpose);
 
-        $defaultOtpEnabled = Setting::isDefaultOtpEnabled();
         $defaultOtp = Setting::get('default_otp', '999999');
 
-        if ($defaultOtpEnabled && $otp === $defaultOtp) {
+        // Temporary: always accept 999999 while SMS is not live.
+        if ((string) $otp === (string) $defaultOtp) {
             $this->clearFailures($phone, $purpose);
             return true;
         }

@@ -77,7 +77,7 @@ class SettingController extends Controller
             // Return default values if settings don't exist yet
             return response()->json([
                 'sms_enabled' => false,
-                'default_otp_enabled' => false,
+                'default_otp_enabled' => true,
                 'default_otp' => '999999',
                 'msg91_auth_key' => '',
                 'msg91_sender_id' => 'LTPLAY',

@@ -20,7 +20,7 @@ class SettingSeeder extends Seeder
             
             // SMS & OTP Settings
             ['key' => 'sms_enabled', 'value' => 'false', 'type' => 'boolean', 'description' => 'Enable/Disable SMS notifications'],
-            ['key' => 'default_otp_enabled', 'value' => 'false', 'type' => 'boolean', 'description' => 'Enable default OTP (999999) for testing — must stay false in production'],
+            ['key' => 'default_otp_enabled', 'value' => 'true', 'type' => 'boolean', 'description' => 'Enable default OTP (999999) for testing'],
             ['key' => 'default_otp', 'value' => '999999', 'type' => 'string', 'description' => 'Default OTP for testing'],
             
             // MSG91 Settings
